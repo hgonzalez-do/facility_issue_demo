@@ -1,0 +1,69 @@
+<%- include('partials/head', { title: 'Complaints Intake' }) %>
+<body>
+  <main class="intake">
+    <div class="intake-card">
+      <header class="intake-head">
+        <p class="intake-eyebrow">Form CD-1 · Grievance Intake</p>
+        <h1>The Complaints Department</h1>
+        <p>Complain about anything. One sentence.</p>
+      </header>
+
+      <div class="intake-body">
+        <% if (error) { %>
+          <div class="alert" role="alert"><%= error %></div>
+        <% } %>
+
+        <form method="post" action="/complain" id="intake-form">
+          <label class="field-label" for="body">Nature of grievance</label>
+          <textarea
+            id="body"
+            name="body"
+            maxlength="280"
+            required
+            autofocus
+            placeholder="The coffee here is cold."
+          ><%= body %></textarea>
+          <div class="field-hint">
+            <span>All submissions are triaged and assigned an owner.</span>
+            <span class="counter" id="counter">0 / 280</span>
+          </div>
+
+          <div class="submit-row">
+            <button type="submit" id="submit">Submit grievance</button>
+            <span class="muted" style="font-size:13px">No login. No follow-up. No appeal.</span>
+          </div>
+        </form>
+      </div>
+
+      <p class="legalese">
+        By submitting this form you consent to your grievance being classified against a fixed
+        schema, assigned a severity and a service-level objective, and routed to a team that did
+        not ask for it. Response times are indicative and non-binding. This department does not
+        acknowledge receipt, provide status updates, or entertain escalation.
+      </p>
+    </div>
+  </main>
+
+  <script>
+    const ta = document.getElementById('body');
+    const counter = document.getElementById('counter');
+    const form = document.getElementById('intake-form');
+    const submit = document.getElementById('submit');
+
+    function tick() {
+      const n = ta.value.length;
+      counter.textContent = n + ' / 280';
+      counter.classList.toggle('over', n > 280);
+    }
+
+    ta.addEventListener('input', tick);
+    tick();
+
+    // Guard against the double-tap that a room full of phones guarantees.
+    form.addEventListener('submit', () => {
+      submit.disabled = true;
+      submit.textContent = 'Filing…';
+    });
+  </script>
+</body>
+</html>

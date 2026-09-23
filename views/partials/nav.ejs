@@ -1,0 +1,15 @@
+<nav class="topbar">
+  <a class="brand" href="/admin">The Complaints Department <span>/ Operations</span></a>
+  <div class="topnav">
+    <a href="/admin"            class="<%= active === 'dashboard'  ? 'on' : '' %>">Dashboard</a>
+    <a href="/admin/tickets"    class="<%= active === 'tickets'    ? 'on' : '' %>">Tickets</a>
+    <a href="/admin/complaints" class="<%= active === 'complaints' ? 'on' : '' %>">Intake</a>
+    <a href="/admin/summary"    class="<%= active === 'summary'    ? 'on' : '' %>">Executive summary</a>
+    <a href="/admin/wall"       class="<%= active === 'wall'       ? 'on' : '' %>">Wall</a>
+    <a href="/qr" target="_blank" rel="noopener">QR</a>
+  </div>
+  <span class="livedot" id="livedot"><i></i> <span id="livetext">connecting</span></span>
+  <form method="post" action="/admin/logout">
+    <button class="btn-secondary" style="padding:5px 12px;font-size:12.5px">Sign out</button>
+  </form>
+</nav>

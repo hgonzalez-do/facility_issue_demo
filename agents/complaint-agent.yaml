@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The Complaints Department — webhook agent.
+#
+# One fired webhook = one session in its own microVM = one ticket. The session
+# classifies a single grievance and writes the row to Managed Postgres itself,
+# through Action Gateway's action_code sandbox. The web tier never sees it.
+#
+# deploy.sh expands every $${VAR} placeholder from the environment at create
+# time and supplies secrets with --secret, so nothing sensitive lives here.
+# Validate with:  doctl harness-runtime validate agents/complaint-agent.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: complaints-intake
+agent: claude-code
+description: Converts one public grievance into one sober enterprise ticket.
+
+# Smallest box that will do. The work is one model call and one INSERT; the
+# demo's scale story is the *number* of these, not the size of any one.
+size: mars-1vcpu-1gb
+
+# Nothing to keep. Each complaint is independent, so let the sandbox go.
+persistent_workspace: false
+idle_timeout: 5m
+
+env:
+  # All inference goes through DigitalOcean's serverless inference service,
+  # which speaks the Anthropic Messages API. Claude Code honours these.
+  ANTHROPIC_BASE_URL: ${INFERENCE_BASE_URL}
+  ANTHROPIC_MODEL: ${INFERENCE_MODEL}
+
+  # Where the ticket goes. Read by the prompt, not by the harness.
+  TICKET_TABLE: ${MARS_TICKET_TABLE}
+
+secrets:
+  # A DigitalOcean model access key, not an Anthropic key — the base URL above
+  # points at DigitalOcean, and this is the credential that service expects.
+  ANTHROPIC_API_KEY: ${INFERENCE_API_KEY}
+
+  # Connection string for the least-privilege `mars_writer` role. That role can
+  # INSERT into tickets and UPDATE three columns on complaints, and nothing
+  # else — see db/grants.postgres.sql. The boundary is enforced by Postgres,
+  # not by trust in the prompt.
+  MARS_DATABASE_URL: ${MARS_DATABASE_URL}
+
+tools:
+  # action_code gives the agent an ephemeral Python sandbox. It is the only
+  # tool it gets, and the only one it needs.
+  - do.actions: [action_code]
+
+permissions:
+  # Deny by default. The agent may run code and nothing else — no bash, no
+  # file writes, no network tools it might otherwise reach for.
+  default: deny
+  rules:
+    - tool: action_code
+      action: allow
+      enforcement: strict
+  filesystem:
+    mode: read-only
+  network:
+    default: deny
+    allow:
+      - ${INFERENCE_HOST}
+
+egress:
+  allow_hosts:
+    # Inference only. No general internet from the sandbox.
+    - ${INFERENCE_HOST}
+  # Attaches the sandbox to the VPC so it can reach Managed Postgres on the
+  # private network. VPC attachment is immutable after create.
+  vpc_uuid: ${VPC_UUID}

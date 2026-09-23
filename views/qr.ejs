@@ -1,0 +1,12 @@
+<%- include('partials/head', { title: 'Complain about anything' }) %>
+<body>
+  <main class="qr-page">
+    <div>
+      <h1>The Complaints Department</h1>
+      <p>Complain about anything. One sentence.</p>
+      <img src="/qr.svg?url=<%= encodeURIComponent(target) %>" alt="QR code linking to the complaints form">
+      <p class="qr-url"><%= target %></p>
+    </div>
+  </main>
+</body>
+</html>

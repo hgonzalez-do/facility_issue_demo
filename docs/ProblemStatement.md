@@ -1,0 +1,9 @@
+The Complaints Department
+
+QR code on screen links to a plain form: "Complain about anything. One sentence." Every submission fires a webhook into a Harness Runtime trigger. Each inbound POST starts a session whose only job is to transform the grievance into a sober enterprise ticket against a fixed schema: title, component, severity, affected_users, suggested_owner, sla_hours, plus a deadpan one-line root_cause_hypothesis. The agent writes the row to a Managed Postgres via action_code, then posts a formatted card to a Slack channel projected next to you.
+
+The comedy writes itself. "The coffee here is cold" becomes P3, component: Beverages, owner: Facilities, root cause: thermal loss in the carafe-to-cup handoff. "My coworker chews loudly" becomes a P2 with affected_users: 4. The audience watches their own nonsense get taken seriously in real time, and every card that lands is a webhook, a fresh microVM, an LLM transform, a database write, and a Slack delivery.
+
+Two things make it a proper demo rather than a gag. First, have the session count visible in the console. When 200 people submit at once, the room sees dozens of isolated sandboxes spin up and finish, which is the scale story without saying the word "scale." Second, end the talk with a scheduled trigger that fires at a set time and produces an executive summary: total tickets, top three components by volume, and a recommended headcount ask for Facilities. Webhook triggers and scheduled triggers in one arc.
+
+Mechanically, you create the trigger with doctl harness-runtime triggers create, which returns the trigger plus a one-time webhook secret, and point the form's webhook at it. Put the target table and Slack channel in the environment config, set the write tool to allow for that one table and deny for everything else, and use an output view to trim the Postgres response so the model never sees more than the row it inserted.

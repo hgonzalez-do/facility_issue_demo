@@ -1,0 +1,107 @@
+# App Platform spec for The Complaints Department.
+# deploy.sh renders this with scripts/render-spec.js and feeds the result to
+# `doctl apps create --spec -`. Do not put secret values in this file.
+
+name: ${STACK_NAME}
+region: ${DO_REGION_SLUG}
+
+features:
+  - buildpack-stack=ubuntu-22
+
+# Binds the Managed Postgres cluster deploy.sh created, so the app gets
+# ${db.DATABASE_URL} without anyone copying a connection string around.
+databases:
+  - name: db
+    engine: PG
+    cluster_name: ${DB_CLUSTER_NAME}
+    production: true
+
+ingress:
+  rules:
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
+
+services:
+  - name: web
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: ${APP_SIZE}
+
+    git:
+      repo_clone_url: ${GITHUB_CLONE_URL}
+      branch: ${GITHUB_BRANCH}
+
+    run_command: npm start
+
+    health_check:
+      http_path: /healthz
+      initial_delay_seconds: 15
+      period_seconds: 10
+      failure_threshold: 5
+
+    envs:
+      - key: NODE_ENV
+        scope: RUN_TIME
+        value: production
+
+      # ── database ────────────────────────────────────────────────────────
+      - key: DB_DRIVER
+        scope: RUN_TIME
+        value: postgres
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
+
+      # ── ingest ──────────────────────────────────────────────────────────
+      # mars: every complaint fires a webhook trigger and a fresh microVM
+      # writes the ticket. This app only ever reads them back.
+      - key: INGEST_MODE
+        scope: RUN_TIME
+        value: mars
+      - key: MARS_TICKET_TABLE
+        scope: RUN_TIME
+        value: tickets
+      - key: MARS_WEBHOOK_URL
+        scope: RUN_TIME
+        value: ${MARS_WEBHOOK_URL}
+      - key: MARS_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${MARS_WEBHOOK_SECRET}
+
+      # ── inference ───────────────────────────────────────────────────────
+      - key: INFERENCE_BASE_URL
+        scope: RUN_TIME
+        value: ${INFERENCE_BASE_URL}
+      - key: INFERENCE_MODEL
+        scope: RUN_TIME
+        value: ${INFERENCE_MODEL}
+      - key: INFERENCE_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: ${INFERENCE_API_KEY}
+
+      # ── dashboard ───────────────────────────────────────────────────────
+      - key: ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+        value: ${ADMIN_PASSWORD}
+      - key: SESSION_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${SESSION_SECRET}
+
+      # Lets the dashboard show the live MARS session census.
+      - key: DIGITALOCEAN_ACCESS_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: ${DIGITALOCEAN_ACCESS_TOKEN}
+
+      # A conference room submits in bursts; the inference service allows
+      # 240 req/min per team, so keep the per-visitor ceiling modest.
+      - key: RATE_MAX
+        scope: RUN_TIME
+        value: "8"

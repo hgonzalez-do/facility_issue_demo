@@ -1,0 +1,19 @@
+<%- include('partials/head', { title: 'Operations sign-in' }) %>
+<body>
+  <main class="login-page">
+    <form class="login-card" method="post" action="/admin/login">
+      <h1>Operations</h1>
+      <p class="sub">The Complaints Department</p>
+
+      <% if (error) { %>
+        <div class="alert" role="alert"><%= error %></div>
+      <% } %>
+
+      <label class="field-label" for="password">Password</label>
+      <input type="password" id="password" name="password" autofocus required autocomplete="current-password">
+      <input type="hidden" name="next" value="<%= next %>">
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

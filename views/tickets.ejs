@@ -1,0 +1,84 @@
+<%- include('partials/head', { title: 'Tickets · Complaints Operations' }) %>
+<body class="admin">
+  <%- include('partials/nav', { active: 'tickets' }) %>
+
+  <div class="wrap">
+    <h2 class="section"><%= total %> ticket<%= total === 1 ? '' : 's' %></h2>
+
+    <form class="filters" method="get" action="/admin/tickets">
+      <input type="search" name="q" placeholder="Search titles, root causes, original complaints…" value="<%= filters.q %>">
+      <select name="component">
+        <option value="">All components</option>
+        <% components.forEach(c => { %>
+          <option value="<%= c %>" <%= filters.component === c ? 'selected' : '' %>><%= c %></option>
+        <% }) %>
+      </select>
+      <select name="severity">
+        <option value="">All severities</option>
+        <% severities.forEach(s => { %>
+          <option value="<%= s %>" <%= filters.severity === s ? 'selected' : '' %>><%= s %></option>
+        <% }) %>
+      </select>
+      <button type="submit">Filter</button>
+      <a class="btn btn-secondary" href="/admin/tickets">Reset</a>
+    </form>
+
+    <table class="grid">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>Component</th>
+          <th>Sev</th>
+          <th class="num">Affected</th>
+          <th>Owner</th>
+          <th class="num">SLA</th>
+          <th>Root cause hypothesis</th>
+          <th>Filed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!tickets.length) { %>
+          <tr><td colspan="9" class="muted" style="padding:28px;text-align:center">No tickets match.</td></tr>
+        <% } %>
+        <% tickets.forEach(t => { %>
+          <tr>
+            <td class="mono muted"><%= t.id %></td>
+            <td>
+              <strong style="color:#f1f5f9"><%= t.title %></strong>
+              <% if (t.complaint_body) { %>
+                <div class="muted" style="font-size:12.5px;font-style:italic;margin-top:3px">“<%= t.complaint_body %>”</div>
+              <% } %>
+            </td>
+            <td><%= t.component %></td>
+            <td><span class="sev <%= t.severity %>"><%= t.severity %></span></td>
+            <td class="num"><%= t.affected_users %></td>
+            <td><%= t.suggested_owner %></td>
+            <td class="num"><%= t.sla_hours %>h</td>
+            <td style="max-width:320px"><%= t.root_cause_hypothesis %></td>
+            <td class="mono muted" style="font-size:11.5px;white-space:nowrap">
+              <%= new Date(t.created_at).toLocaleString() %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+
+    <% if (pages > 1) { %>
+      <div class="pager">
+        <% const qs = (p) => {
+             const u = new URLSearchParams();
+             if (filters.q) u.set('q', filters.q);
+             if (filters.component) u.set('component', filters.component);
+             if (filters.severity) u.set('severity', filters.severity);
+             u.set('page', p);
+             return '/admin/tickets?' + u.toString();
+           }; %>
+        <% if (page > 1) { %><a class="btn btn-secondary" href="<%= qs(page - 1) %>">← Previous</a><% } %>
+        <span>Page <%= page %> of <%= pages %></span>
+        <% if (page < pages) { %><a class="btn btn-secondary" href="<%= qs(page + 1) %>">Next →</a><% } %>
+      </div>
+    <% } %>
+  </div>
+</body>
+</html>

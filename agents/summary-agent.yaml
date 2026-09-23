@@ -1,0 +1,50 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The Complaints Department — scheduled summary agent.
+#
+# The closing beat of the talk. A cron trigger fires this once at a set time;
+# it reads the ticket volumes, writes an executive summary with a recommended
+# headcount ask for Facilities, and stores it for the dashboard to render.
+#
+# Same shape as the webhook agent, one difference that matters: this one needs
+# to READ, so it connects as a different, read-plus-summaries role.
+# Validate with:  doctl harness-runtime validate agents/summary-agent.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: complaints-summary
+agent: claude-code
+description: Produces the period executive summary from ticket volumes.
+
+size: mars-1vcpu-2gb
+persistent_workspace: false
+idle_timeout: 5m
+
+env:
+  ANTHROPIC_BASE_URL: ${INFERENCE_BASE_URL}
+  ANTHROPIC_MODEL: ${INFERENCE_MODEL}
+
+secrets:
+  ANTHROPIC_API_KEY: ${INFERENCE_API_KEY}
+  # The `mars_reporter` role: SELECT on tickets, INSERT on summaries.
+  # It cannot read complaint bodies and cannot touch the tickets it reports on.
+  MARS_DATABASE_URL: ${MARS_REPORTER_DATABASE_URL}
+
+tools:
+  - do.actions: [action_code]
+
+permissions:
+  default: deny
+  rules:
+    - tool: action_code
+      action: allow
+      enforcement: strict
+  filesystem:
+    mode: read-only
+  network:
+    default: deny
+    allow:
+      - ${INFERENCE_HOST}
+
+egress:
+  allow_hosts:
+    - ${INFERENCE_HOST}
+  vpc_uuid: ${VPC_UUID}

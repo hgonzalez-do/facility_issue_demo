@@ -1,0 +1,119 @@
+<%- include('partials/head', { title: 'Dashboard · Complaints Operations' }) %>
+<body class="admin">
+  <%- include('partials/nav', { active: 'dashboard' }) %>
+
+  <div class="wrap">
+    <h2 class="section">Intake volume</h2>
+    <div class="tiles">
+      <div class="tile accent">
+        <div class="k">Tickets filed</div>
+        <div class="v" data-stat="tickets"><%= stats.tickets %></div>
+      </div>
+      <div class="tile">
+        <div class="k">Complaints received</div>
+        <div class="v" data-stat="complaints"><%= stats.complaints %></div>
+      </div>
+      <div class="tile warn">
+        <div class="k">In flight</div>
+        <div class="v" data-stat="processing"><%= stats.processing %></div>
+        <div class="sub">being triaged now</div>
+      </div>
+      <div class="tile bad">
+        <div class="k">Failed</div>
+        <div class="v" data-stat="failed"><%= stats.failed %></div>
+      </div>
+      <div class="tile">
+        <div class="k">MARS sessions</div>
+        <div class="v" id="sessions-total"><%= sessions ? sessions.total : '—' %></div>
+        <div class="sub" id="sessions-sub">
+          <% if (sessions) { %>
+            <%= sessions.running %> running · <%= sessions.paused %> paused
+          <% } else { %>
+            set DIGITALOCEAN_ACCESS_TOKEN
+          <% } %>
+        </div>
+      </div>
+      <div class="tile">
+        <div class="k">Pipeline</div>
+        <div class="v" style="font-size:19px;letter-spacing:-0.01em"><%= mode %></div>
+        <div class="sub"><%= driver %></div>
+      </div>
+    </div>
+
+    <h2 class="section">Latest tickets</h2>
+    <div class="cards" id="cards">
+      <% if (!recent.length) { %>
+        <div class="empty" id="empty" style="grid-column:1/-1">
+          Nothing filed yet. Point the room at <span class="mono">/qr</span>.
+        </div>
+      <% } %>
+      <% recent.forEach(t => { %>
+        <%- include('partials/card', { t }) %>
+      <% }) %>
+    </div>
+
+    <div class="row" style="align-items:flex-start;gap:16px;margin-top:8px">
+      <div style="flex:1;min-width:300px">
+        <h2 class="section">Volume by component</h2>
+        <table class="grid" id="by-component">
+          <thead><tr><th>Component</th><th class="num">Tickets</th><th style="width:34%"></th></tr></thead>
+          <tbody>
+            <% const maxC = Math.max(1, ...stats.byComponent.map(c => c.count)); %>
+            <% if (!stats.byComponent.length) { %>
+              <tr><td colspan="3" class="muted">No data yet.</td></tr>
+            <% } %>
+            <% stats.byComponent.forEach(c => { %>
+              <tr>
+                <td><%= c.component %></td>
+                <td class="num"><%= c.count %></td>
+                <td><div class="bar" style="width: <%= Math.round((c.count / maxC) * 100) %>%"></div></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="flex:1;min-width:300px">
+        <h2 class="section">Queue by owner</h2>
+        <table class="grid">
+          <thead><tr><th>Team</th><th class="num">Tickets</th><th style="width:34%"></th></tr></thead>
+          <tbody>
+            <% const maxO = Math.max(1, ...stats.byOwner.map(o => o.count)); %>
+            <% if (!stats.byOwner.length) { %>
+              <tr><td colspan="3" class="muted">No data yet.</td></tr>
+            <% } %>
+            <% stats.byOwner.forEach(o => { %>
+              <tr>
+                <td><%= o.owner %></td>
+                <td class="num"><%= o.count %></td>
+                <td><div class="bar" style="width: <%= Math.round((o.count / maxO) * 100) %>%"></div></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h2 class="section">Executive summary</h2>
+    <% if (summary) { %>
+      <div class="memo">
+        <div class="memo-head">
+          <span>Operations summary</span>
+          <span><%= new Date(summary.generated_at).toLocaleString() %></span>
+        </div>
+        <p><%= summary.narrative %></p>
+        <div class="ask"><strong>Headcount ask:</strong> <%= summary.headcount_ask %></div>
+      </div>
+    <% } else { %>
+      <div class="empty">
+        No summary generated yet.
+        <form method="post" action="/admin/summary/run" style="margin-top:14px">
+          <button>Generate now</button>
+        </form>
+      </div>
+    <% } %>
+  </div>
+
+  <script src="/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<%- include('partials/head', { title: 'Executive summary · Complaints Operations' }) %>
+<body class="admin">
+  <%- include('partials/nav', { active: 'summary' }) %>
+
+  <div class="wrap">
+    <div class="row">
+      <h2 class="section" style="margin:0">Executive summaries</h2>
+      <div class="spacer"></div>
+      <form method="post" action="/admin/summary/run">
+        <button>Generate now</button>
+      </form>
+    </div>
+
+    <p class="muted" style="font-size:13.5px;margin:12px 0 20px">
+      In <span class="mono">mars</span> mode this is produced by a scheduled Harness Runtime
+      trigger. The button runs the same job locally so you can rehearse the ending.
+    </p>
+
+    <% if (!summaries.length) { %>
+      <div class="empty">No summaries yet.</div>
+    <% } %>
+
+    <% summaries.forEach(s => { %>
+      <div class="memo">
+        <div class="memo-head">
+          <span>Operations summary · <%= s.total_tickets %> tickets</span>
+          <span><%= new Date(s.generated_at).toLocaleString() %></span>
+        </div>
+
+        <h3>Top components by volume</h3>
+        <ol>
+          <% if (!s.top_components.length) { %><li class="muted">No ticket volume in period.</li><% } %>
+          <% s.top_components.forEach(c => { %>
+            <li><strong><%= c.component %></strong> — <%= c.count %> tickets</li>
+          <% }) %>
+        </ol>
+
+        <h3>Narrative</h3>
+        <p><%= s.narrative %></p>
+
+        <div class="ask"><strong>Headcount ask:</strong> <%= s.headcount_ask %></div>
+      </div>
+    <% }) %>
+  </div>
+</body>
+</html>

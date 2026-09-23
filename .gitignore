@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+.envrc
+.env.*.local
+*.log
+data/
+.deploy-state.json
+.DS_Store

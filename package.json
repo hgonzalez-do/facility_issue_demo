@@ -1,0 +1,25 @@
+{
+  "name": "mars-complaint-agent",
+  "version": "1.0.0",
+  "description": "The Complaints Department — a DigitalOcean MARS demo. Public gripes become sober enterprise tickets.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:init": "node scripts/init-db.js",
+    "db:seed": "node scripts/seed.js",
+    "db:reset": "node scripts/reset.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.0.0",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "pg": "^8.13.1",
+    "qrcode": "^1.5.4"
+  }
+}

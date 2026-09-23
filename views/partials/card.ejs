@@ -1,0 +1,17 @@
+<article class="card" style="--sev: var(--<%= String(t.severity).toLowerCase() %>)">
+  <div class="card-top">
+    <span class="sev <%= t.severity %>"><%= t.severity %></span>
+    <span class="chip"><%= t.component %></span>
+    <span class="chip"><%= t.suggested_owner %></span>
+  </div>
+  <h3><%= t.title %></h3>
+  <% if (t.complaint_body) { %>
+    <p class="quote">“<%= t.complaint_body %>”</p>
+  <% } %>
+  <p class="rc"><b>Root cause hypothesis</b><%= t.root_cause_hypothesis %></p>
+  <div class="card-foot">
+    <span><%= t.affected_users %> affected</span>
+    <span>SLA <%= t.sla_hours %>h</span>
+    <span>#<%= t.id %></span>
+  </div>
+</article>
