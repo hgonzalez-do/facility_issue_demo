@@ -156,4 +156,3 @@ fills the wall instantly without touching an agent.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the app is put together
 - [docs/PLATFORM-NOTES.md](docs/PLATFORM-NOTES.md) — what the platform actually
   does, as opposed to what you would reasonably assume
-- [docs/ProblemStatement.md](docs/ProblemStatement.md) — the original brief

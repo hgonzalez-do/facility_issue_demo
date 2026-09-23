@@ -234,7 +234,24 @@ existing="$(doctl harness-runtime triggers list --output json 2>/dev/null \
   | jq -r --arg n "$WEBHOOK_TRIGGER" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
 
 if [ -n "$existing" ] && [ -n "$MARS_WEBHOOK_URL" ] && [ -n "$MARS_WEBHOOK_SECRET" ]; then
-  ok "trigger $WEBHOOK_TRIGGER already exists ($existing)"
+  # Push the current prompt and manifest to the existing trigger rather than
+  # leaving it alone. Both are copied into the trigger at create time, so
+  # without this an edit to agents/complaint-prompt.txt would sit in the repo
+  # doing nothing while the old wording kept running — a silent no-op that is
+  # very hard to spot from the outside. Updating in place keeps the webhook
+  # URL and its secret, which recreating would not.
+  doctl harness-runtime validate agents/complaint-agent.yaml >/dev/null \
+    || die "agents/complaint-agent.yaml failed validation."
+
+  doctl harness-runtime triggers update "$existing" \
+    --prompt "$(cat agents/complaint-prompt.txt)" \
+    --spec agents/complaint-agent.yaml \
+    --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+    --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
+    >/dev/null 2>&1 \
+    && ok "trigger $WEBHOOK_TRIGGER updated with the current prompt and manifest" \
+    || warn "trigger $WEBHOOK_TRIGGER exists but could not be updated — it is still running its previous prompt"
+  state_set webhook_trigger_id "$existing"
 else
   if [ -n "$existing" ]; then
     # The secret is shown once at creation. Without it in state we cannot sign
@@ -283,7 +300,14 @@ else
     | jq -r --arg n "$CRON_TRIGGER" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
 
   if [ -n "$existing_cron" ]; then
-    ok "trigger $CRON_TRIGGER already exists ($existing_cron)"
+    doctl harness-runtime triggers update "$existing_cron" \
+      --prompt "$(cat agents/summary-prompt.txt)" \
+      --spec agents/summary-agent.yaml \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      --secret "MARS_DATABASE_URL=${MARS_REPORTER_DATABASE_URL}" \
+      >/dev/null 2>&1 \
+      && ok "trigger $CRON_TRIGGER updated with the current prompt and manifest" \
+      || warn "trigger $CRON_TRIGGER exists but could not be updated"
   else
     doctl harness-runtime validate agents/summary-agent.yaml >/dev/null \
       || die "agents/summary-agent.yaml failed validation."

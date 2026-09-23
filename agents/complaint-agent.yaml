@@ -3,7 +3,7 @@
 #
 # One fired webhook = one session in its own microVM = one ticket. The session
 # classifies a single grievance and writes the row to Managed Postgres itself,
-# through Action Gateway's action_code sandbox. The web tier never sees it.
+# from its own shell. The web tier never sees it.
 #
 # deploy.sh expands every $${VAR} placeholder from the environment at create
 # time and supplies secrets with --secret, so nothing sensitive lives here.

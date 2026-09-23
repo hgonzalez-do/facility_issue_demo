@@ -85,9 +85,12 @@ The scheduled summary agent gets a second role, `mars_reporter`: `SELECT` on
 `tickets` and `INSERT` on `summaries`, nothing more. It never sees a complaint
 body and cannot edit the tickets it reports on.
 
-On top of that, the manifests set `permissions.default: deny` and allow exactly
-one tool (`action_code`), with a read-only filesystem and egress restricted to
-the inference host plus the VPC.
+The manifests add what the platform will actually enforce: a writable
+workspace only, and no VPC. They do *not* set `permissions.default: deny` or
+attach a tool catalogue — `opencode` rejects rules naming a tool, and egress
+ships unrestricted because the tight form does not hold in trigger-started
+sessions. See [PLATFORM-NOTES.md](PLATFORM-NOTES.md). The grants above are the
+boundary that actually holds.
 
 ---
 
