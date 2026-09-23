@@ -92,6 +92,10 @@ try {
     ['mars_writer', 'SELECT', 'tickets', 'id',    true],
     ['mars_writer', 'SELECT', 'tickets', 'title', false],
     ['mars_writer', 'SELECT', 'tickets', 'root_cause_hypothesis', false],
+    ['mars_writer', 'SELECT', 'complaints', 'id',   true],
+    ['mars_writer', 'SELECT', 'complaints', 'body', false],
+    ['mars_writer', 'UPDATE', 'complaints', 'status', true],
+    ['mars_writer', 'UPDATE', 'complaints', 'body',   false],
   ];
 
   let failures = 0;

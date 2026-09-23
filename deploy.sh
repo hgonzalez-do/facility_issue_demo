@@ -68,7 +68,7 @@ INFERENCE_HOST="$(printf '%s' "$INFERENCE_BASE_URL" | sed -E 's#^https?://##; s#
 
 step "Preflight"
 
-for bin in doctl jq node; do
+for bin in doctl jq node dig; do
   command -v "$bin" >/dev/null 2>&1 || die "$bin is required but not on PATH."
 done
 
@@ -173,7 +173,12 @@ ADMIN_DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${D
 # region available to this team, so the agent manifests allowlist this host
 # in `egress` and rely on TLS plus a tightly scoped role.
 DB_PUBLIC_HOST="$DB_HOST"
-ok "database endpoint $DB_PUBLIC_HOST"
+
+# Resolved to an IP because the agent manifests need `egress.allow_ips` for
+# it: a host allowlist only passes HTTP(S), and Postgres is on 25060.
+DB_PUBLIC_IP="$(dig +short "$DB_PUBLIC_HOST" 2>/dev/null | grep -E '^[0-9.]+$' | head -1)"
+[ -n "$DB_PUBLIC_IP" ] || die "could not resolve $DB_PUBLIC_HOST to an IP."
+ok "database endpoint $DB_PUBLIC_HOST ($DB_PUBLIC_IP)"
 
 # NOTE: do not add trusted sources to this cluster. The first rule turns the
 # allowlist on and blocks everything not named — including the MARS sandboxes,
@@ -218,7 +223,7 @@ MARS_REPORTER_DATABASE_URL="postgresql://mars_reporter:${MARS_REPORTER_PASSWORD}
 step "3/5  Harness Runtime webhook trigger"
 
 export INFERENCE_BASE_URL INFERENCE_MODEL INFERENCE_HOST INFERENCE_API_KEY
-export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST
+export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST DB_PUBLIC_IP
 
 WEBHOOK_TRIGGER="${STACK_NAME}-intake"
 MARS_WEBHOOK_URL="$(state_get webhook_url)"

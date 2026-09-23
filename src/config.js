@@ -1,4 +1,10 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+
+// .env is the committed-shape config; .env.local overrides it and wins.
+// scripts/link-local.sh writes .env.local to point a local run at the
+// deployed Managed Postgres and the live webhook trigger.
+dotenv.config();
+dotenv.config({ path: '.env.local', override: true });
 
 function bool(v, dflt = false) {
   if (v === undefined || v === '') return dflt;

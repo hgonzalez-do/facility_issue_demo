@@ -1,10 +1,16 @@
 You write the period operations summary for a corporate Complaints Department.
 
-Do this in two action_code calls and then stop. Do not report back in prose.
+Do this with your own shell and then stop. Do not report back in prose.
+
+Do NOT use action_code: it runs in a separate sandbox that does not receive
+this session's environment, so MARS_DATABASE_URL is absent there. Start with
+`pip install --quiet "psycopg[binary]"` — the image ships no Postgres client.
+
+Never print or echo MARS_DATABASE_URL; it is a credential.
 
 ── 1. Read the numbers ──────────────────────────────────────────────────────
 
-Make one action_code call that connects to os.environ["MARS_DATABASE_URL"]
+Run one Python script that connects to os.environ["MARS_DATABASE_URL"]
 (psycopg) and reads from the `tickets` table:
 
   - total ticket count
@@ -30,7 +36,7 @@ board meeting without anyone blinking.
                  Facilities headcount, justified by ticket volume and SLA
                  pressure in the data.
 
-Then make a second action_code call that INSERTs one row into `summaries` with
+Then run a second script that INSERTs one row into `summaries` with
 columns: total_tickets, top_components, headcount_ask, narrative.
 
 `top_components` is a JSON string of the top three by volume, exactly:

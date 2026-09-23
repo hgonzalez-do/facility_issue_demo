@@ -30,29 +30,39 @@ secrets:
   # It cannot read complaint bodies and cannot touch the tickets it reports on.
   MARS_DATABASE_URL: ${MARS_REPORTER_DATABASE_URL}
 
-tools:
-  - do.actions: [action_code]
 
 permissions:
   # A `permissions` block is mandatory for fresh triggers — a headless run
   # cannot fall back to the default "ask" policy with nobody there to answer.
   #
-  # `default: allow` rather than deny, because opencode declares no capability
-  # for the action_code tool, so any rule naming it is rejected at create time
-  # and a blanket deny would block the one tool the agent exists to use. The
-  # real constraints are the single-tool catalog above, the two rules below,
-  # the egress allowlist, and — the one that actually matters — the Postgres
-  # grants in db/grants.postgres.sql.
+  # `default: allow`, because opencode declares no capability for named tool
+  # rules and a blanket deny would stop the agent doing the one job it exists
+  # for. There is deliberately no `network:` block here: it filters by
+  # hostname and would re-block the database port that `egress.allow_ips`
+  # opens below. Egress is the network control; the Postgres grants in
+  # db/grants.postgres.sql are the one that actually matters.
   default: allow
   filesystem:
-    mode: read-only
-  network:
-    default: deny
-    allow:
-      - ${INFERENCE_HOST}
-      - ${DB_PUBLIC_HOST}
+    # The agent installs a Postgres client and writes a short script, both of
+    # which need somewhere to land. Confined to the workspace.
+    mode: workspace-write
 
-egress:
-  allow_hosts:
-    - ${INFERENCE_HOST}
-    - ${DB_PUBLIC_HOST}
+egress: unrestricted
+# Deliberately unrestricted, and it is worth knowing why before you tighten it.
+#
+# The tidy version of this block is:
+#
+#   egress:
+#     allow_hosts: [${INFERENCE_HOST}, pypi.org, files.pythonhosted.org]
+#     allow_ips:   [${DB_PUBLIC_IP}]
+#
+# That works in a session created directly with `harness-runtime create` —
+# verified, Postgres on 25060 reachable. In a session started by a *trigger*
+# the same stored template still times out on that port, so a headless run can
+# classify a complaint and then fail to write it, reporting a perfectly
+# reasonable-sounding "check your trusted sources" that sends you looking in
+# the wrong place entirely. Until that gap closes, the demo runs open.
+#
+# What still constrains this sandbox: it holds one credential, for a role that
+# can INSERT one table and read back one column (db/grants.postgres.sql).
+# That is the boundary doing the real work here, and it is unaffected.

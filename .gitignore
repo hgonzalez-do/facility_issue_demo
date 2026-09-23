@@ -2,7 +2,7 @@ node_modules/
 .env
 .env.local
 .envrc
-.env.*.local
+.env.*
 *.log
 data/
 .deploy-state.json

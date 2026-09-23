@@ -44,9 +44,18 @@ GRANT USAGE  ON SEQUENCE tickets_id_seq TO mars_writer;
 -- agent still cannot read a single ticket it or anyone else has filed.
 GRANT SELECT (id) ON TABLE tickets TO mars_writer;
 
--- Close the loop on the complaint it was handed: two columns, no more.
--- It still cannot SELECT the row, so it can only update the id in its payload.
+-- Close the loop on the complaint it was handed: three columns, no more.
 GRANT UPDATE (status, error, session_id) ON TABLE complaints TO mars_writer;
+
+-- And SELECT on `id` alone, for the same reason as tickets.id above: the
+-- agent's statement is `UPDATE complaints ... WHERE id = %s`, and a WHERE
+-- clause is a read. Without this the UPDATE is denied, which would be fine
+-- on its own — except the denial raises inside psycopg's connection context
+-- manager, which rolls the transaction back and silently takes the perfectly
+-- good INSERT with it. The visible symptom is tickets that intermittently
+-- never appear, which looks like anything but a missing column grant.
+-- Complaint bodies stay unreadable: `body` is not granted.
+GRANT SELECT (id) ON TABLE complaints TO mars_writer;
 
 -- Explicitly denied, for the avoidance of doubt and for anyone reading this
 -- over your shoulder at the conference:
