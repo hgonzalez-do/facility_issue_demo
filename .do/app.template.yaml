@@ -14,6 +14,14 @@ databases:
   - name: db
     engine: PG
     cluster_name: ${DB_CLUSTER_NAME}
+    # Name the database explicitly. Without db_name, ${db.DATABASE_URL}
+    # resolves to the cluster's default database (defaultdb) while the agents
+    # connect to ${DB_NAME} — the web tier writes complaints to one database,
+    # the agents look for them in another, and every ticket insert fails the
+    # foreign key. Nothing errors at deploy time; it only shows up as tickets
+    # that never arrive. Rendered from the same DB_NAME deploy.sh uses to
+    # build MARS_DATABASE_URL, so the two cannot drift.
+    db_name: ${DB_NAME}
     production: true
 
 ingress:

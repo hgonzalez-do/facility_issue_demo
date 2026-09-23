@@ -21,6 +21,7 @@ const KEYS = [
   'STACK_NAME',
   'DO_REGION_SLUG',
   'DB_CLUSTER_NAME',
+  'DB_NAME',
   'APP_SIZE',
   'GITHUB_REPO',
   'GITHUB_BRANCH',

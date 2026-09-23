@@ -55,13 +55,14 @@ set +a
 : "${INFERENCE_BASE_URL:=https://inference.do-ai.run}"
 : "${INFERENCE_MODEL:=anthropic-claude-opus-5}"
 : "${MARS_TICKET_TABLE:=tickets}"
+: "${DB_NAME:=complaints}"
 : "${SUMMARY_CRON:=}"
 : "${SUMMARY_TIMEZONE:=America/New_York}"
 
 # App Platform regions are the datacentre without the trailing digit.
 DO_REGION_SLUG="$(printf '%s' "$DO_REGION" | sed -E 's/[0-9]+$//')"
 DB_CLUSTER_NAME="${STACK_NAME}-db"
-DB_NAME="complaints"
+
 INFERENCE_HOST="$(printf '%s' "$INFERENCE_BASE_URL" | sed -E 's#^https?://##; s#/.*$##')"
 
 # ── preflight ────────────────────────────────────────────────────────────────
@@ -313,7 +314,7 @@ SESSION_SECRET="$(state_get session_secret)"
 [ -n "$SESSION_SECRET" ] || SESSION_SECRET="$(openssl rand -hex 32)"
 state_set session_secret "$SESSION_SECRET"
 
-export STACK_NAME DO_REGION_SLUG DB_CLUSTER_NAME APP_SIZE
+export STACK_NAME DO_REGION_SLUG DB_CLUSTER_NAME DB_NAME APP_SIZE
 export GITHUB_REPO GITHUB_BRANCH
 export MARS_WEBHOOK_URL MARS_WEBHOOK_SECRET
 export ADMIN_PASSWORD SESSION_SECRET
@@ -344,6 +345,20 @@ fi
 state_set app_id "$app_id"
 
 APP_URL="$(doctl apps get "$app_id" --format DefaultIngress --no-header | tr -d ' ')"
+
+# Assert the web tier and the agents landed on the same database.
+#
+# When they do not, nothing errors: the app writes complaints to one database,
+# the agents look for them in another, and every ticket insert fails a foreign
+# key inside a sandbox you are not watching. The wall just stays empty. Worth
+# eight lines to make that loud instead of mysterious.
+live_db="$(doctl apps spec get "$app_id" --format json 2>/dev/null \
+  | jq -r '.databases[]? | select(.name=="db") | .db_name // "defaultdb"')"
+if [ "$live_db" = "$DB_NAME" ]; then
+  ok "app and agents both on database '$DB_NAME'"
+else
+  die "database mismatch: the app is bound to '${live_db}' but the agents write to '${DB_NAME}'. Every ticket insert will fail a foreign key and the wall will stay empty. Check the db_name field in .do/app.template.yaml."
+fi
 
 # ── done ─────────────────────────────────────────────────────────────────────
 

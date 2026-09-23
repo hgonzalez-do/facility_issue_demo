@@ -19,6 +19,8 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 set -a; . ./.env; set +a
 export DIGITALOCEAN_ACCESS_TOKEN
 
+: "${DB_NAME:=complaints}"   # same default and override as deploy.sh
+
 db_id="$(jq -r .db_cluster_id .deploy-state.json)"
 conn="$(doctl databases connection "$db_id" --output json)"
 pick() { echo "$conn" | jq -r "if type==\"array\" then .[0] else . end | .$1"; }
@@ -32,7 +34,7 @@ NODE_ENV=development
 PORT=3000
 
 # The deployed Managed Postgres cluster. There is no local database.
-DATABASE_URL=postgresql://$(pick user):$(pick password)@$(pick host):$(pick port)/complaints?sslmode=require
+DATABASE_URL=postgresql://$(pick user):$(pick password)@$(pick host):$(pick port)/${DB_NAME}?sslmode=require
 DB_CA_CERT=${ca}
 
 # Submissions fire the real webhook trigger, so real microVMs write the rows
