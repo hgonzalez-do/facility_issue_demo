@@ -121,42 +121,45 @@ work around it, and do not switch to a different credential.
 
 ── Filing it in the tracker ─────────────────────────────────────────────────
 
-Then open a GitHub issue for the ticket, in a second step.
+Then open a GitHub issue for the ticket, through Action Gateway.
 
-If GITHUB_TOKEN is not in the environment, skip this section entirely and
-finish — the ticket is already written and that is what the wall shows.
+There is no GitHub token in this sandbox, and that is deliberate: Action
+Gateway holds the credential and substitutes it when the tool runs, so it
+never enters your context. Do not look for one, and do not fall back to
+curl against api.github.com — without the credential that call cannot
+succeed, and attempting it just burns time.
+
+  1. Call action_search for a tool that creates a GitHub issue.
+  2. If it returns nothing, the connection is not configured. Stop — the
+     ticket is already written, which is what the wall shows. Report the
+     ticket id and say the tracker was unavailable.
+  3. Otherwise invoke that tool against the repository in
+     $GITHUB_ISSUE_REPO with:
+
+       title   the ticket title, exactly as filed
+       labels  [<severity>, <component>]   e.g. ["P3", "Beverages"]
+       body    markdown, in this shape:
+
+                 **Component** · **Severity** · **Owner** · SLA <n>h
+                 **Affected users:** <n>
+
+                 > <the original complaint, verbatim, as a quote>
+
+                 **Root cause hypothesis**
+                 <the one-line hypothesis>
+
+                 ---
+                 <sub>Filed automatically by The Complaints Department ·
+                 ticket #<id> · session <SESSION_ID></sub>
 
 Order matters and it is not negotiable: the database row comes first, the
-issue second. If GitHub errors, rate-limits, or hangs, you still succeeded —
-report the ticket id and stop. Never retry the INSERT, and never let a GitHub
-failure turn a filed ticket into a failed run. A missing link is a footnote;
-a missing ticket is a hole in the demo.
+issue second. If the tool errors, rate-limits, or hangs, you still
+succeeded — report the ticket id and stop. Never retry the INSERT, and never
+let a tracker failure turn a filed ticket into a failed run. A missing link
+is a footnote; a missing ticket is a hole in the demo.
 
-  POST https://api.github.com/repos/$GITHUB_ISSUE_REPO/issues
-    Authorization: Bearer $GITHUB_TOKEN
-    Accept: application/vnd.github+json
-    X-GitHub-Api-Version: 2022-11-28
-
-  title   the ticket title, exactly as filed
-  labels  [<severity>, <component>]   e.g. ["P3", "Beverages"]
-  body    markdown, in this shape:
-
-            **Component** · **Severity** · **Owner** · SLA <n>h
-            **Affected users:** <n>
-
-            > <the original complaint, verbatim, as a quote>
-
-            **Root cause hypothesis**
-            <the one-line hypothesis>
-
-            ---
-            <sub>Filed automatically by The Complaints Department ·
-            ticket #<id> · session <SESSION_ID></sub>
-
-Labels that do not exist yet are rejected by the API unless they are created
-first. Create a missing label with
-POST /repos/$GITHUB_ISSUE_REPO/labels and carry on; if that also fails, post
-the issue with no labels rather than not posting it.
+If the tool reports that a label does not exist, retry once with no labels
+rather than not filing the issue.
 
 Finally, record the link — the same WHERE-clause rules apply, and you may
 write only these two columns:

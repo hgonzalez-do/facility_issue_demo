@@ -28,6 +28,7 @@ sequenceDiagram
     participant VM as microVM session
     participant Inf as DO inference
     participant PG as Managed Postgres
+    participant AG as Action Gateway
     participant GH as GitHub issues
     participant Wall as The wall
 
@@ -43,7 +44,8 @@ sequenceDiagram
     VM->>PG: INSERT the ticket
     Note over VM: sandbox is discarded
 
-    VM->>GH: open a GitHub issue
+    VM->>AG: open a GitHub issue
+    AG->>GH: (Action Gateway supplies the credential)
     VM->>PG: link the issue to the ticket
 
     Wall->>PG: poll
@@ -150,9 +152,12 @@ fills the wall instantly without touching an agent.
   nothing else** — it cannot read what anyone wrote. Enforced by Postgres
   grants, asserted at deploy time.
 - **Each ticket also opens a GitHub issue**, labelled by severity and
-  component, when `GITHUB_ISSUE_TOKEN` is set. The database row is written
-  first and the issue second, so a GitHub failure costs a link, not a ticket.
-  Leave the token unset and the step is skipped entirely.
+  component, through Action Gateway — which holds the credential and
+  substitutes it when the tool runs, so no GitHub token ever reaches the
+  sandbox. Needs a one-time GitHub connection under *Managed Agents >
+  Action Gateway > Connections*; without one the step is skipped. The
+  database row is written first and the issue second, so a tracker failure
+  costs a link, not a ticket.
 - **The form is rate limited**, and the inference service allows 240
   requests/minute per team. A full room fits; a full room twice in one minute
   does not.

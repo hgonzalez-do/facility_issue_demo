@@ -13,10 +13,17 @@ flowchart LR
     V -->|classify| I[DO inference]
     I --> V
     V -->|INSERT ticket| PG
-    V -->|open issue| GH[GitHub issues]
+    V -->|invoke tool| AG[Action Gateway]
+    AG -->|credential substituted here| GH[GitHub issues]
     V -->|link issue to ticket| PG
     PG -->|poll| W[watcher] -->|SSE| D[dashboard]
 ```
+
+Note where the GitHub credential is, and is not. It lives in an Action
+Gateway connection and is substituted at tool-execution time, so it never
+enters the sandbox — unlike the database URL, which is a session secret the
+agent can read. That asymmetry is the argument for routing more things
+through the gateway as the catalogue grows.
 
 The ticket is written before the issue, deliberately. GitHub is the step most
 likely to fail on a conference network, and a ticket that lands without a

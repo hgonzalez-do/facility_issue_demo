@@ -57,7 +57,6 @@ set +a
 : "${MARS_TICKET_TABLE:=tickets}"
 : "${DB_NAME:=complaints}"
 : "${GITHUB_ISSUE_REPO:=}"
-: "${GITHUB_ISSUE_TOKEN:=}"
 : "${SUMMARY_CRON:=}"
 : "${SUMMARY_TIMEZONE:=America/New_York}"
 
@@ -227,27 +226,14 @@ step "3/5  Harness Runtime webhook trigger"
 
 export INFERENCE_BASE_URL INFERENCE_MODEL INFERENCE_HOST INFERENCE_API_KEY
 export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST DB_PUBLIC_IP
-export GITHUB_ISSUE_REPO GITHUB_ISSUE_TOKEN
+export GITHUB_ISSUE_REPO
 
-if [ -n "$GITHUB_ISSUE_TOKEN" ] && [ -n "$GITHUB_ISSUE_REPO" ]; then
-  info "tickets will also open issues in $GITHUB_ISSUE_REPO"
-elif [ -n "$GITHUB_ISSUE_REPO" ]; then
-  warn "GITHUB_ISSUE_REPO is set but GITHUB_ISSUE_TOKEN is not — no issues will be opened"
+if [ -n "$GITHUB_ISSUE_REPO" ]; then
+  info "tickets will open issues in $GITHUB_ISSUE_REPO via Action Gateway"
+  info "  (requires a GitHub connection: Managed Agents > Action Gateway > Connections)"
 fi
 
-# The spec actually sent, and the extra --secret args, both depend on whether
-# a GitHub token is configured. An empty --secret is rejected outright, and a
-# placeholder would be worse: the prompt skips the issue step only when
-# GITHUB_TOKEN is absent from the environment, so a dummy value would have the
-# agent confidently posting to GitHub with a credential that cannot work.
-COMPLAINT_SPEC="$SCRIPT_DIR/.complaint-agent.rendered.yaml"
-if [ -n "$GITHUB_ISSUE_TOKEN" ]; then
-  cp agents/complaint-agent.yaml "$COMPLAINT_SPEC"
-  gh_secret=(--secret "GITHUB_TOKEN=${GITHUB_ISSUE_TOKEN}")
-else
-  grep -v '^  GITHUB_TOKEN:' agents/complaint-agent.yaml > "$COMPLAINT_SPEC"
-  gh_secret=()
-fi
+COMPLAINT_SPEC="agents/complaint-agent.yaml"
 
 WEBHOOK_TRIGGER="${STACK_NAME}-intake"
 MARS_WEBHOOK_URL="$(state_get webhook_url)"
@@ -271,7 +257,7 @@ if [ -n "$existing" ] && [ -n "$MARS_WEBHOOK_URL" ] && [ -n "$MARS_WEBHOOK_SECRE
     --spec "$COMPLAINT_SPEC" \
     --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
     --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
-    ${gh_secret[@]+"${gh_secret[@]}"} 2>&1)" \
+    2>&1)" \
     && ok "trigger $WEBHOOK_TRIGGER updated with the current prompt and manifest" \
     || warn "trigger $WEBHOOK_TRIGGER could not be updated, so it is STILL RUNNING ITS PREVIOUS PROMPT:
     $(printf '%s' "$update_out" | tail -3 | tr '\n' ' ')"
@@ -296,7 +282,6 @@ else
     --prompt "$(cat agents/complaint-prompt.txt)" \
     --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
     --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
-    ${gh_secret[@]+"${gh_secret[@]}"} \
     --output json 2>&1)" || die "trigger creation failed:\n$created"
 
   MARS_WEBHOOK_URL="$(echo "$created" | first_of '(.webhook.webhook_url // .webhook_url)')"

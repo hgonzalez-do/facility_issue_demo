@@ -46,8 +46,9 @@ env:
   # Where the ticket goes. Read by the prompt, not by the harness.
   TICKET_TABLE: ${MARS_TICKET_TABLE}
 
-  # owner/repo that gets a GitHub issue per ticket. The prompt skips the
-  # whole step when GITHUB_TOKEN is absent, so this is safe to leave set.
+  # owner/repo that gets a GitHub issue per ticket. The credential is not
+  # here — Action Gateway holds it. If no GitHub connection is configured
+  # the agent finds no tool, skips the issue, and still files the ticket.
   GITHUB_ISSUE_REPO: ${GITHUB_ISSUE_REPO}
 
 secrets:
@@ -61,12 +62,15 @@ secrets:
   # trusting the prompt.
   MARS_DATABASE_URL: ${MARS_DATABASE_URL}
 
-  # Fine-grained PAT, Issues: read+write on GITHUB_ISSUE_REPO and nothing
-  # else. Empty is a supported state: the agent files the ticket and skips
-  # the issue. Do not reuse a broad `repo`-scoped token here — this value
-  # lives in a sandbox that runs model-authored shell commands.
-  GITHUB_TOKEN: ${GITHUB_ISSUE_TOKEN}
 
+tools:
+  # Action Gateway. The agent gets a catalogue search and the ability to
+  # invoke what it finds — the GitHub issue tool among them. The credential
+  # for that tool lives in an Action Gateway connection and is substituted
+  # when the tool executes, so unlike the database URL below it never enters
+  # the sandbox at all. That is the whole reason this route is worth the
+  # extra moving part.
+  - do.actions: [action_search, action_invoke]
 
 permissions:
   # A `permissions` block is mandatory for fresh triggers — a headless run
