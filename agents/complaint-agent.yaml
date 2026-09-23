@@ -64,13 +64,18 @@ secrets:
 
 
 tools:
-  # Action Gateway. The agent gets a catalogue search and the ability to
-  # invoke what it finds — the GitHub issue tool among them. The credential
-  # for that tool lives in an Action Gateway connection and is substituted
-  # when the tool executes, so unlike the database URL below it never enters
-  # the sandbox at all. That is the whole reason this route is worth the
-  # extra moving part.
-  - do.actions: [action_search, action_invoke]
+  # Action Gateway, scoped to three GitHub tools and nothing else. The
+  # credential lives in an Action Gateway connection and is substituted when
+  # the tool executes, so unlike the database URL below it never enters the
+  # sandbox at all — that is the whole reason this route is worth an extra
+  # moving part.
+  #
+  # Slugs, not bare names: `create_issue` also exists in the jira and linear
+  # toolkits, and the bare name is ambiguous. Listing tools explicitly rather
+  # than a bare `do.actions` also keeps the other 1,197 tools in the
+  # catalogue — Jira, Supabase, Sentry, the DigitalOcean toolkit — out of
+  # reach of a sandbox that files complaints about cold coffee.
+  - do.actions: [github_create_issue, github_add_issue_labels, github_create_label]
 
 permissions:
   # A `permissions` block is mandatory for fresh triggers — a headless run

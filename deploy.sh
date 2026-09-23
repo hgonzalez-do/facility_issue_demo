@@ -229,8 +229,21 @@ export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_
 export GITHUB_ISSUE_REPO
 
 if [ -n "$GITHUB_ISSUE_REPO" ]; then
-  info "tickets will open issues in $GITHUB_ISSUE_REPO via Action Gateway"
-  info "  (requires a GitHub connection: Managed Agents > Action Gateway > Connections)"
+  # Action Gateway resolves the GitHub credential by actor, and a
+  # trigger-started session runs as the account UUID rather than the
+  # username. Check that specific actor, because a connection authorized
+  # against any other one is invisible here and fails silently.
+  actor="$(doctl account get --format UUID --no-header 2>/dev/null | tr -d ' ')"
+  gh_state="$(curl -sf -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
+    https://api.digitalocean.com/v2/action-gateway/connections 2>/dev/null \
+    | jq -r --arg a "$actor" '.connections[]? | select(.provider=="github" and .user_id==$a) | .status' \
+    | head -1)"
+  if [ "$gh_state" = "active" ]; then
+    ok "GitHub connected — tickets will open issues in $GITHUB_ISSUE_REPO"
+  else
+    warn "GitHub is not authorized for this actor, so no issues will be opened."
+    warn "  Run ./scripts/connect-github.sh and open the link it prints."
+  fi
 fi
 
 COMPLAINT_SPEC="agents/complaint-agent.yaml"

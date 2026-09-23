@@ -80,6 +80,14 @@ flowchart TD
 Re-running is safe; every step checks for what it already made. When you're
 done: `./destroy.sh`.
 
+One step cannot be automated — authorizing GitHub, because it is OAuth:
+
+```bash
+./scripts/connect-github.sh    # prints a link; open it, approve
+```
+
+Skip it and the demo still works, minus the issues.
+
 **Cost while it's up:** about $5/mo for the app and $15/mo for the database,
 plus per-session compute and tokens. Tear it down after the talk.
 
