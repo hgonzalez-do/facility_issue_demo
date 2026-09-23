@@ -22,7 +22,7 @@ const KEYS = [
   'DO_REGION_SLUG',
   'DB_CLUSTER_NAME',
   'APP_SIZE',
-  'GITHUB_CLONE_URL',
+  'GITHUB_REPO',
   'GITHUB_BRANCH',
   'MARS_WEBHOOK_URL',
   'MARS_WEBHOOK_SECRET',
@@ -32,6 +32,7 @@ const KEYS = [
   'ADMIN_PASSWORD',
   'SESSION_SECRET',
   'DIGITALOCEAN_ACCESS_TOKEN',
+  'DB_CA_CERT_B64',
 ];
 
 const template = fs.readFileSync(templatePath, 'utf8');

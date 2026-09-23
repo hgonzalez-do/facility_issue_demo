@@ -37,6 +37,13 @@ GRANT USAGE ON SCHEMA public TO mars_writer;
 GRANT INSERT ON TABLE tickets TO mars_writer;
 GRANT USAGE  ON SEQUENCE tickets_id_seq TO mars_writer;
 
+-- One column of SELECT, and only one. `INSERT ... RETURNING id` reads the
+-- value back, which Postgres treats as a SELECT and refuses without this —
+-- the failure surfaces as a flat "permission denied for table tickets", which
+-- looks nothing like the RETURNING clause that caused it. Column-level, so the
+-- agent still cannot read a single ticket it or anyone else has filed.
+GRANT SELECT (id) ON TABLE tickets TO mars_writer;
+
 -- Close the loop on the complaint it was handed: two columns, no more.
 -- It still cannot SELECT the row, so it can only update the id in its payload.
 GRANT UPDATE (status, error, session_id) ON TABLE complaints TO mars_writer;

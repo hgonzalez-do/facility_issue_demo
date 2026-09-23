@@ -51,6 +51,7 @@ set +a
 : "${GITHUB_BRANCH:=main}"
 : "${APP_SIZE:=basic-xxs}"
 : "${DB_SIZE:=db-s-1vcpu-1gb}"
+: "${DB_VERSION:=17}"
 : "${INFERENCE_BASE_URL:=https://inference.do-ai.run}"
 : "${INFERENCE_MODEL:=anthropic-claude-opus-5}"
 : "${MARS_TICKET_TABLE:=tickets}"
@@ -103,6 +104,12 @@ if ! doctl harness-runtime triggers list >/dev/null 2>&1; then
   warn "It is in public preview — the deploy will stop before creating triggers."
 fi
 
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+# doctl returns a bare object from some subcommands and a single-element array
+# from others. `first_of` normalises both so field lookups cannot blow up.
+first_of() { jq -r 'if type=="array" then (.[0] // {}) else . end | '"$1"' // empty'; }
+
 # ── state ────────────────────────────────────────────────────────────────────
 # Records what was created so a re-run is idempotent and destroy.sh knows the
 # blast radius. Contains the webhook secret, so it is gitignored.
@@ -126,10 +133,16 @@ if [ -n "$db_id" ]; then
   ok "cluster $DB_CLUSTER_NAME already exists ($db_id)"
 else
   info "creating $DB_CLUSTER_NAME ($DB_SIZE, $DO_REGION) — this takes a few minutes"
-  db_id="$(doctl databases create "$DB_CLUSTER_NAME" \
-    --engine pg --version 17 --size "$DB_SIZE" --num-nodes 1 --region "$DO_REGION" \
-    --wait --format ID --no-header | head -1 | tr -d ' ')"
-  [ -n "$db_id" ] || die "cluster creation returned no id."
+  # `databases create` has no --format/--no-header, and --wait writes progress
+  # to stdout, so its output is not parseable. Create, then look the id up by
+  # name through the same path the already-exists branch uses.
+  doctl databases create "$DB_CLUSTER_NAME" \
+    --engine pg --version "$DB_VERSION" --size "$DB_SIZE" --num-nodes 1 \
+    --region "$DO_REGION" --wait >/dev/null \
+    || die "cluster creation failed."
+  db_id="$(doctl databases list --format ID,Name --no-header 2>/dev/null \
+    | awk -v n="$DB_CLUSTER_NAME" '$2==n {print $1}' | head -1)"
+  [ -n "$db_id" ] || die "cluster created but could not be found by name."
   ok "created $db_id"
 fi
 state_set db_cluster_id "$db_id"
@@ -148,24 +161,23 @@ doctl databases db list "$db_id" --format Name --no-header 2>/dev/null | grep -q
   || { doctl databases db create "$db_id" "$DB_NAME" >/dev/null && ok "created database '$DB_NAME'"; }
 
 conn_json="$(doctl databases connection "$db_id" --output json)"
-DB_HOST="$(echo "$conn_json" | jq -r '.[0].host // .host')"
-DB_PORT="$(echo "$conn_json" | jq -r '.[0].port // .port')"
-DB_USER="$(echo "$conn_json" | jq -r '.[0].user // .user')"
-DB_PASS="$(echo "$conn_json" | jq -r '.[0].password // .password')"
+DB_HOST="$(echo "$conn_json" | first_of '.host')"
+DB_PORT="$(echo "$conn_json" | first_of '.port')"
+DB_USER="$(echo "$conn_json" | first_of '.user')"
+DB_PASS="$(echo "$conn_json" | first_of '.password')"
 
 ADMIN_DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
 
-# The cluster's private hostname is what the MARS sandbox uses over the VPC.
-DB_PRIVATE_HOST="$(doctl databases get "$db_id" --output json | jq -r '.[0].private_connection.host // empty')"
-[ -n "$DB_PRIVATE_HOST" ] || DB_PRIVATE_HOST="$DB_HOST"
+# The MARS sandbox reaches Postgres over the cluster's public endpoint.
+# VPC attachment would be better, but MARS currently rejects it in every
+# region available to this team, so the agent manifests allowlist this host
+# in `egress` and rely on TLS plus a tightly scoped role.
+DB_PUBLIC_HOST="$DB_HOST"
+ok "database endpoint $DB_PUBLIC_HOST"
 
-VPC_UUID="$(doctl databases get "$db_id" --output json | jq -r '.[0].private_network_uuid // empty')"
-if [ -z "$VPC_UUID" ]; then
-  VPC_UUID="$(doctl vpcs list --format ID,Region,Default --no-header 2>/dev/null \
-    | awk -v r="$DO_REGION" '$2==r && $3=="true" {print $1}' | head -1)"
-fi
-[ -n "$VPC_UUID" ] || die "could not determine a VPC uuid for $DO_REGION."
-ok "vpc $VPC_UUID"
+# NOTE: do not add trusted sources to this cluster. The first rule turns the
+# allowlist on and blocks everything not named — including the MARS sandboxes,
+# whose egress addresses are not published.
 
 # ── 2. schema + least-privilege roles ────────────────────────────────────────
 
@@ -180,20 +192,33 @@ state_set mars_reporter_password "$MARS_REPORTER_PASSWORD"
 
 [ -d node_modules ] || { info "installing dependencies"; npm install --silent; }
 
+# DigitalOcean signs cluster certs with its own CA. Fetch it so both the
+# migration and the running app can verify the connection properly instead of
+# turning verification off.
+DB_CA_CERT="$(doctl databases get-ca "$db_id" --output json 2>/dev/null \
+  | first_of '.certificate' | base64 --decode 2>/dev/null || true)"
+if printf '%s' "$DB_CA_CERT" | grep -q 'BEGIN CERTIFICATE'; then
+  ok "fetched cluster CA certificate"
+else
+  warn "could not fetch the cluster CA — connections will be encrypted but unverified"
+  DB_CA_CERT=""
+fi
+export DB_CA_CERT
+
 ADMIN_DATABASE_URL="$ADMIN_DATABASE_URL" \
 MARS_DB_PASSWORD="$MARS_DB_PASSWORD" \
 MARS_REPORTER_PASSWORD="$MARS_REPORTER_PASSWORD" \
   node scripts/migrate-postgres.js || die "migration failed."
 
-MARS_DATABASE_URL="postgresql://mars_writer:${MARS_DB_PASSWORD}@${DB_PRIVATE_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
-MARS_REPORTER_DATABASE_URL="postgresql://mars_reporter:${MARS_REPORTER_PASSWORD}@${DB_PRIVATE_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
+MARS_DATABASE_URL="postgresql://mars_writer:${MARS_DB_PASSWORD}@${DB_PUBLIC_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
+MARS_REPORTER_DATABASE_URL="postgresql://mars_reporter:${MARS_REPORTER_PASSWORD}@${DB_PUBLIC_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require"
 
 # ── 3. webhook trigger ───────────────────────────────────────────────────────
 
 step "3/5  Harness Runtime webhook trigger"
 
 export INFERENCE_BASE_URL INFERENCE_MODEL INFERENCE_HOST INFERENCE_API_KEY
-export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL VPC_UUID
+export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST
 
 WEBHOOK_TRIGGER="${STACK_NAME}-intake"
 MARS_WEBHOOK_URL="$(state_get webhook_url)"
@@ -226,9 +251,9 @@ else
     --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
     --output json 2>&1)" || die "trigger creation failed:\n$created"
 
-  MARS_WEBHOOK_URL="$(echo "$created" | jq -r '.[0].webhook_url // .webhook_url // empty')"
-  MARS_WEBHOOK_SECRET="$(echo "$created" | jq -r '.[0].secret // .secret // .webhook_secret // empty')"
-  trigger_id="$(echo "$created" | jq -r '.[0].trigger_id // .trigger_id // .id // empty')"
+  MARS_WEBHOOK_URL="$(echo "$created" | first_of '(.webhook.webhook_url // .webhook_url)')"
+  MARS_WEBHOOK_SECRET="$(echo "$created" | first_of '(.webhook_secret // .webhook.secret // .secret)')"
+  trigger_id="$(echo "$created" | first_of '(.trigger_id // .id)')"
 
   [ -n "$MARS_WEBHOOK_URL" ]    || die "no webhook_url in trigger response:\n$created"
   [ -n "$MARS_WEBHOOK_SECRET" ] || die "no one-time secret in trigger response:\n$created"
@@ -270,7 +295,7 @@ else
       --secret "MARS_DATABASE_URL=${MARS_REPORTER_DATABASE_URL}" \
       --output json 2>&1)" || die "cron trigger creation failed:\n$cron_out"
 
-    state_set cron_trigger_id "$(echo "$cron_out" | jq -r '.[0].trigger_id // .trigger_id // .id // empty')"
+    state_set cron_trigger_id "$(echo "$cron_out" | first_of '(.trigger_id // .id)')"
     ok "created"
   fi
 fi
@@ -283,12 +308,14 @@ SESSION_SECRET="$(state_get session_secret)"
 [ -n "$SESSION_SECRET" ] || SESSION_SECRET="$(openssl rand -hex 32)"
 state_set session_secret "$SESSION_SECRET"
 
-GITHUB_CLONE_URL="https://github.com/${GITHUB_REPO}.git"
-
 export STACK_NAME DO_REGION_SLUG DB_CLUSTER_NAME APP_SIZE
-export GITHUB_CLONE_URL GITHUB_BRANCH
+export GITHUB_REPO GITHUB_BRANCH
 export MARS_WEBHOOK_URL MARS_WEBHOOK_SECRET
 export ADMIN_PASSWORD SESSION_SECRET
+
+# Base64 so a multi-line PEM survives the YAML round trip intact.
+DB_CA_CERT_B64="$(printf '%s' "$DB_CA_CERT" | base64 | tr -d '\n')"
+export DB_CA_CERT_B64
 
 # render-spec substitutes only our own placeholders, so App Platform's
 # ${db.DATABASE_URL} binding survives intact. It fails loudly on a typo.
@@ -312,11 +339,6 @@ fi
 state_set app_id "$app_id"
 
 APP_URL="$(doctl apps get "$app_id" --format DefaultIngress --no-header | tr -d ' ')"
-
-# Let the app reach Postgres without opening the cluster to the world.
-doctl databases firewalls append "$db_id" --rule "app:$app_id" >/dev/null 2>&1 \
-  && ok "app added to database trusted sources" \
-  || warn "could not add the app to database trusted sources — check the cluster firewall"
 
 # ── done ─────────────────────────────────────────────────────────────────────
 

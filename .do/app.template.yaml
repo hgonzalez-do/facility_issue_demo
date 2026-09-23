@@ -30,9 +30,14 @@ services:
     instance_count: 1
     instance_size_slug: ${APP_SIZE}
 
-    git:
-      repo_clone_url: ${GITHUB_CLONE_URL}
+    # `github:` rather than `git: repo_clone_url:` — the git source type
+    # cannot authenticate to a private repo and fails with "Account does not
+    # have access to the repo", even once the DigitalOcean GitHub app is
+    # installed. The github source uses that installation.
+    github:
+      repo: ${GITHUB_REPO}
       branch: ${GITHUB_BRANCH}
+      deploy_on_push: true
 
     run_command: npm start
 
@@ -54,6 +59,11 @@ services:
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}
+      # DigitalOcean's cluster CA, so the app verifies the TLS chain rather
+      # than trusting it blindly. Public certificate, not a secret.
+      - key: DB_CA_CERT
+        scope: RUN_TIME
+        value: ${DB_CA_CERT_B64}
 
       # ── ingest ──────────────────────────────────────────────────────────
       # mars: every complaint fires a webhook trigger and a fresh microVM

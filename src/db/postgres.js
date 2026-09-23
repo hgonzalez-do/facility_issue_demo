@@ -1,4 +1,5 @@
 import pg from 'pg';
+import { splitSslMode, sslConfig, caFromEnv } from './ssl.js';
 
 // BIGSERIAL ids arrive as strings by default (int8 exceeds JS safe integers).
 // Our ids never will, and the rest of the app compares them numerically.
@@ -16,12 +17,11 @@ function toPositional(sql) {
 }
 
 export function createPostgres({ url }) {
+  const { url: cleanUrl, sslmode } = splitSslMode(url);
+
   const pool = new pg.Pool({
-    connectionString: url,
-    // DO Managed Postgres presents a CA-signed cert via its own CA bundle.
-    // Verification is handled by sslmode in the URL; this keeps node-postgres
-    // from failing on the self-signed chain when sslmode=require.
-    ssl: url.includes('sslmode=disable') ? false : { rejectUnauthorized: false },
+    connectionString: cleanUrl,
+    ssl: sslConfig({ sslmode, caCert: caFromEnv() }),
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,

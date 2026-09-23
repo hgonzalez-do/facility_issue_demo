@@ -11,22 +11,37 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 name: complaints-intake
-agent: claude-code
+
+# opencode, not claude-code, and the reason is not stylistic: MARS
+# preflight-validates ANTHROPIC_API_KEY against api.anthropic.com whenever the
+# adapter is claude-code. It ignores every base-URL override while doing so, so
+# a DigitalOcean model key fails with a 401 and the session never starts.
+# opencode takes the credential at face value and calls whatever base URL it is
+# given, which is what keeps every model call in this demo on DigitalOcean.
+agent: opencode
 description: Converts one public grievance into one sober enterprise ticket.
 
 # Smallest box that will do. The work is one model call and one INSERT; the
-# demo's scale story is the *number* of these, not the size of any one.
+# demo's scale story is the number of these, not the size of any one.
 size: mars-1vcpu-1gb
 
-# Nothing to keep. Each complaint is independent, so let the sandbox go.
 persistent_workspace: false
 idle_timeout: 5m
 
 env:
-  # All inference goes through DigitalOcean's serverless inference service,
-  # which speaks the Anthropic Messages API. Claude Code honours these.
-  ANTHROPIC_BASE_URL: ${INFERENCE_BASE_URL}
+  # All inference goes through DigitalOcean's serverless inference service.
+  #
+  # Note the /v1: opencode appends "/messages" to this base, where the
+  # Anthropic SDK would append "/v1/messages". Without it every call 404s
+  # against a DigitalOcean maintenance page that looks like an outage.
+  ANTHROPIC_BASE_URL: ${INFERENCE_BASE_URL}/v1
   ANTHROPIC_MODEL: ${INFERENCE_MODEL}
+
+  # The platform-native equivalents. opencode does not read these today — it
+  # falls back to api.anthropic.com if they are all it is given — but they are
+  # the documented MARS keys, so set both and let the adapter take its pick.
+  HARNESS_INFERENCE_BASE_URL: ${INFERENCE_BASE_URL}/v1
+  HARNESS_INFERENCE_MODEL: ${INFERENCE_MODEL}
 
   # Where the ticket goes. Read by the prompt, not by the harness.
   TICKET_TABLE: ${MARS_TICKET_TABLE}
@@ -36,10 +51,10 @@ secrets:
   # points at DigitalOcean, and this is the credential that service expects.
   ANTHROPIC_API_KEY: ${INFERENCE_API_KEY}
 
-  # Connection string for the least-privilege `mars_writer` role. That role can
-  # INSERT into tickets and UPDATE three columns on complaints, and nothing
-  # else — see db/grants.postgres.sql. The boundary is enforced by Postgres,
-  # not by trust in the prompt.
+  # Connection string for the least-privilege `mars_writer` role: INSERT on
+  # tickets, SELECT on tickets.id only, UPDATE on three columns of complaints.
+  # See db/grants.postgres.sql. The boundary is enforced by Postgres, not by
+  # trusting the prompt.
   MARS_DATABASE_URL: ${MARS_DATABASE_URL}
 
 tools:
@@ -48,24 +63,31 @@ tools:
   - do.actions: [action_code]
 
 permissions:
-  # Deny by default. The agent may run code and nothing else — no bash, no
-  # file writes, no network tools it might otherwise reach for.
-  default: deny
-  rules:
-    - tool: action_code
-      action: allow
-      enforcement: strict
+  # A `permissions` block is mandatory for fresh triggers — a headless run
+  # cannot fall back to the default "ask" policy with nobody there to answer.
+  #
+  # `default: allow` rather than deny, because opencode declares no capability
+  # for the action_code tool, so any rule naming it is rejected at create time
+  # and a blanket deny would block the one tool the agent exists to use. The
+  # real constraints are the single-tool catalog above, the two rules below,
+  # the egress allowlist, and — the one that actually matters — the Postgres
+  # grants in db/grants.postgres.sql.
+  default: allow
   filesystem:
     mode: read-only
   network:
     default: deny
     allow:
       - ${INFERENCE_HOST}
+      - ${DB_PUBLIC_HOST}
 
 egress:
   allow_hosts:
-    # Inference only. No general internet from the sandbox.
+    # Inference, and the database. Nothing else.
     - ${INFERENCE_HOST}
-  # Attaches the sandbox to the VPC so it can reach Managed Postgres on the
-  # private network. VPC attachment is immutable after create.
-  vpc_uuid: ${VPC_UUID}
+    - ${DB_PUBLIC_HOST}
+
+# No `vpc_uuid`. MARS rejects VPC attachment in every region available to this
+# team ("This VPC's region is not supported"), so the sandbox reaches Managed
+# Postgres over its public endpoint instead — TLS, a scoped role, and the
+# egress allowlist above. Re-add it here the moment your team can attach.

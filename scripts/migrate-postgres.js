@@ -14,6 +14,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
+import { splitSslMode, sslConfig, caFromEnv } from '../src/db/ssl.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const dbDir = path.join(here, '..', 'db');
@@ -46,9 +47,16 @@ for (const [name, value] of [
   }
 }
 
+const { url: cleanUrl, sslmode } = splitSslMode(url);
+const caCert = caFromEnv();
+
+if (!caCert) {
+  console.warn('  ! DB_CA_CERT not set — connecting without certificate verification');
+}
+
 const client = new pg.Client({
-  connectionString: url,
-  ssl: { rejectUnauthorized: false },
+  connectionString: cleanUrl,
+  ssl: sslConfig({ sslmode, caCert }),
   connectionTimeoutMillis: 20_000,
 });
 
@@ -78,7 +86,28 @@ try {
     ['mars_reporter', 'UPDATE', 'tickets',    false],
   ];
 
+  // Column-level: the agent may read back the id it just inserted, and
+  // nothing else. Verifying the negative here matters more than the positive.
+  const columnChecks = [
+    ['mars_writer', 'SELECT', 'tickets', 'id',    true],
+    ['mars_writer', 'SELECT', 'tickets', 'title', false],
+    ['mars_writer', 'SELECT', 'tickets', 'root_cause_hypothesis', false],
+  ];
+
   let failures = 0;
+  for (const [role, priv, table, column, expected] of columnChecks) {
+    const { rows } = await client.query(
+      'SELECT has_column_privilege($1, $2, $3, $4) AS ok',
+      [role, table, column, priv],
+    );
+    if (rows[0].ok !== expected) {
+      failures += 1;
+      console.error(
+        `  ✗ ${role} ${priv} ${table}.${column}: expected ${expected ? 'allowed' : 'DENIED'}, got ${rows[0].ok ? 'allowed' : 'denied'}`,
+      );
+    }
+  }
+
   for (const [role, priv, table, expected] of checks) {
     const { rows } = await client.query(
       'SELECT has_table_privilege($1, $2, $3) AS ok',
@@ -98,7 +127,7 @@ try {
     process.exit(1);
   }
 
-  console.log(`  ${checks.length} privilege checks passed`);
+  console.log(`  ${checks.length + columnChecks.length} privilege checks passed`);
 } finally {
   await client.end();
 }
