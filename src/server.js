@@ -66,7 +66,13 @@ async function main() {
     console.log(`    dashboard  ${base}/admin`);
     console.log(`    wall       ${base}/admin/wall`);
     console.log('');
-    console.log(`    ingest: ${config.ingest.mode}   database: ${config.db.driver}`);
+    let dbHost = 'unknown';
+    try {
+      dbHost = new URL(config.db.url).host;
+    } catch {
+      /* startup validation already rejected an unusable URL */
+    }
+    console.log(`    ingest: ${config.ingest.mode}   database: ${dbHost}`);
     console.log('');
   });
 

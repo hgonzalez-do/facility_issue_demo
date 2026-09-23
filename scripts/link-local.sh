@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
 # Point a local `npm run dev` at the deployed cloud stack: the Managed
-# Postgres cluster and the live webhook trigger. Useful when the App Platform
-# URL is awkward to reach (corporate policy, no internet on stage) but you
-# still want the real agents and the real database behind the UI.
+# Postgres cluster and the live webhook trigger.
+#
+# This is how you run the app locally at all — there is no local database, so
+# a local process talks to the same cluster App Platform does. Also the way to
+# keep the demo working when the App Platform URL is awkward to reach.
 #
 #   ./scripts/link-local.sh > .env.local
 #   npm run dev            # dotenv loads .env, then .env.local wins
@@ -29,8 +31,7 @@ cat <<EOF
 NODE_ENV=development
 PORT=3000
 
-# The deployed Managed Postgres cluster, not the local SQLite file.
-DB_DRIVER=postgres
+# The deployed Managed Postgres cluster. There is no local database.
 DATABASE_URL=postgresql://$(pick user):$(pick password)@$(pick host):$(pick port)/complaints?sslmode=require
 DB_CA_CERT=${ca}
 

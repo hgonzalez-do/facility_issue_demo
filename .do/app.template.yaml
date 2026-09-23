@@ -53,9 +53,6 @@ services:
         value: production
 
       # ── database ────────────────────────────────────────────────────────
-      - key: DB_DRIVER
-        scope: RUN_TIME
-        value: postgres
       - key: DATABASE_URL
         scope: RUN_TIME
         value: ${db.DATABASE_URL}

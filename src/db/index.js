@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
-import { createSqlite } from './sqlite.js';
 import { createPostgres } from './postgres.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -18,14 +17,10 @@ export function db() {
 export async function initDb({ applySchema = true } = {}) {
   if (driver) return driver;
 
-  driver =
-    config.db.driver === 'postgres'
-      ? createPostgres({ url: config.db.url })
-      : createSqlite({ file: config.db.sqlitePath });
+  driver = createPostgres({ url: config.db.url });
 
   if (applySchema) {
-    const file = config.db.driver === 'postgres' ? 'schema.postgres.sql' : 'schema.sqlite.sql';
-    await driver.exec(await fs.readFile(path.join(schemaDir, file), 'utf8'));
+    await driver.exec(await fs.readFile(path.join(schemaDir, 'schema.postgres.sql'), 'utf8'));
   }
 
   return driver;
@@ -37,8 +32,8 @@ export async function closeDb() {
 }
 
 /* ── row normalisation ──────────────────────────────────────────────────────
-   SQLite hands back ISO strings, Postgres hands back Date objects. Everything
-   above this file expects ISO strings, so flatten here rather than in views. */
+   Postgres hands back Date objects and BIGINT ids; everything above this file
+   expects ISO strings and numbers. Flatten here rather than in the views. */
 
 function iso(v) {
   if (v == null) return null;

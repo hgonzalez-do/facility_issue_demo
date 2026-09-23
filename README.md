@@ -98,33 +98,35 @@ it on schedule, or press **Generate now** on `/admin/summary`.
 
 **Rehearsing.** `node scripts/seed.js --fake -n 20` fills the wall instantly
 with no API calls. Drop `--fake` for real classification. `npm run db:reset --
---yes` wipes between run-throughs.
+--yes` wipes between run-throughs — it targets the deployed cluster, and says
+so before it does anything.
 
 ---
 
-## If the venue blocks your app URL
+## Running it locally
 
-Keep the real database and the real agents; move only the web tier to your
-laptop.
+There is no local database. A local run points at the cluster you deployed,
+so what you develop against is what the demo runs on — and it is also how you
+present if the venue blocks your App Platform URL.
 
 ```bash
+npm install
 ./scripts/link-local.sh > .env.local
 npm run dev
 ```
 
-Submissions still fire the live trigger and still spawn real microVMs.
-
----
-
-## Building on it
-
-```bash
-npm install && cp .env.example .env    # INFERENCE_API_KEY + ADMIN_PASSWORD
-npm run db:init && npm run dev
+```mermaid
+flowchart LR
+    L["npm run dev<br/><small>localhost:3000</small>"] -->|reads| PG[("Managed Postgres")]
+    L -->|signed webhook| T["Harness Runtime trigger"]
+    T --> V["microVM session"]
+    V -->|writes| PG
+    A["App Platform"] -->|reads| PG
 ```
 
-Defaults to SQLite and classifies in-process, so there is nothing to deploy
-while you work on it. Set `INGEST_MODE=mars` to use the real agents.
+Submissions still fire the live trigger and still spawn real microVMs; only
+the web tier has moved. Set `INGEST_MODE=local` in `.env.local` to classify
+in-process instead — faster to iterate on the prompt, same database.
 
 ---
 

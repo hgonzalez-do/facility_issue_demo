@@ -47,7 +47,7 @@ apiRouter.get('/stream', (req, res) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
-  send('hello', { mode: config.ingest.mode, driver: config.db.driver });
+  send('hello', { mode: config.ingest.mode });
 
   const onTicket = (t) => send(EVENTS.TICKET, t);
   const onStats = (s) => send(EVENTS.STATS, s);

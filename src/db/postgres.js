@@ -8,8 +8,9 @@ pg.types.setTypeParser(pg.types.builtins.INT8, (v) => (v === null ? null : Numbe
 /**
  * PostgreSQL driver — DigitalOcean Managed Postgres in production.
  *
- * Accepts the same `?`-placeholder SQL the SQLite driver uses and rewrites it
- * to $1..$n, so the query layer above stays driver-agnostic.
+ * The query layer above writes `?` placeholders, which this rewrites to
+ * $1..$n. Keeping the query layer free of pg-specific syntax means the SQL
+ * reads the same as the schema files.
  */
 function toPositional(sql) {
   let n = 0;

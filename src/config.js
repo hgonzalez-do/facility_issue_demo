@@ -16,7 +16,6 @@ function int(v, dflt) {
   return Number.isFinite(n) ? n : dflt;
 }
 
-const driver = (process.env.DB_DRIVER || 'sqlite').toLowerCase();
 const ingestMode = (process.env.INGEST_MODE || 'local').toLowerCase();
 
 export const config = {
@@ -32,9 +31,10 @@ export const config = {
     maxAgeMs: 8 * 60 * 60 * 1000,
   },
 
+  // DigitalOcean Managed Postgres, in every environment. There is no local
+  // database: `scripts/link-local.sh` points a local run at the deployed
+  // cluster, so what you develop against is what the demo runs on.
   db: {
-    driver, // 'sqlite' | 'postgres'
-    sqlitePath: process.env.SQLITE_PATH || './data/complaints.db',
     url: process.env.DATABASE_URL || '',
   },
 
@@ -74,11 +74,10 @@ export const config = {
 export function validateConfig() {
   const problems = [];
 
-  if (!['sqlite', 'postgres'].includes(config.db.driver)) {
-    problems.push(`DB_DRIVER must be "sqlite" or "postgres", got "${config.db.driver}"`);
-  }
-  if (config.db.driver === 'postgres' && !config.db.url) {
-    problems.push('DB_DRIVER=postgres requires DATABASE_URL');
+  if (!config.db.url) {
+    problems.push(
+      'DATABASE_URL is not set. For a local run against the deployed cluster: ./scripts/link-local.sh > .env.local',
+    );
   }
   if (!['local', 'mars'].includes(config.ingest.mode)) {
     problems.push(`INGEST_MODE must be "local" or "mars", got "${config.ingest.mode}"`);

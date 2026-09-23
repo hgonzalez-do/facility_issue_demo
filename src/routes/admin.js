@@ -20,6 +20,18 @@ import {
 
 export const adminRouter = express.Router();
 
+/**
+ * Short cluster name for the dashboard's pipeline tile. DigitalOcean appends
+ * `-do-user-<account>-<n>` to every hostname, which is noise on a projector.
+ */
+function dbHostLabel() {
+  try {
+    return new URL(config.db.url).host.split('.')[0].replace(/-do-user-\d+-\d+$/, '');
+  } catch {
+    return 'postgres';
+  }
+}
+
 /* ── login ──────────────────────────────────────────────────────────────── */
 
 adminRouter.get('/login', (req, res) => {
@@ -70,7 +82,7 @@ adminRouter.get('/', async (req, res, next) => {
       summary,
       sessions,
       mode: config.ingest.mode,
-      driver: config.db.driver,
+      dbHost: dbHostLabel(),
     });
   } catch (err) {
     next(err);

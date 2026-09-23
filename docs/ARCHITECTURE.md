@@ -12,15 +12,20 @@ identical in both.
 ```mermaid
 flowchart LR
     B[browser] -->|POST /complain| A[app]
-    A --> C[(SQLite)]
+    A -->|INSERT complaint| PG[(Managed Postgres)]
     A -->|classify| I[DO inference]
     I --> A
-    A -->|INSERT ticket| C
-    C -->|poll| W[watcher] -->|SSE| D[dashboard]
+    A -->|INSERT ticket| PG
+    PG -->|poll| W[watcher] -->|SSE| D[dashboard]
 ```
 
-One process, one SQLite file. Use this to build. You still need a DigitalOcean
-credential, because inference runs there.
+The app does the agent's job itself. Faster to iterate on the prompt, and it
+does not consume sandbox time — but it is not the demo, because nothing is
+isolated per complaint.
+
+Note the database is the same deployed cluster either way. There is no local
+database: `scripts/link-local.sh` writes `DATABASE_URL` and the cluster CA
+into `.env.local`, which overrides `.env`.
 
 ### `mars` — the demo
 
@@ -116,8 +121,8 @@ src/
   config.js              Env parsing + startup validation
   db/
     index.js             Driver-agnostic query layer
-    sqlite.js            Local driver (node:sqlite, no native build)
-    postgres.js          Managed Postgres driver
+    postgres.js          Managed Postgres driver — the only one
+    ssl.js               Cluster CA verification, sslmode handling
   lib/
     ticket-schema.js     The fixed schema, the vocabularies, the system prompt
     inference.js         DigitalOcean serverless inference client
@@ -131,15 +136,15 @@ src/
   routes/                public · admin · api (SSE)
 views/                   EJS, no build step
 public/                  CSS + the SSE client
-db/                      Schemas for both engines, plus the grants
+db/                      Schema and the least-privilege grants
 agents/                  Harness Agent manifests + trigger prompts
                          complaint-agent.yaml   webhook: one session per grievance
                          summary-agent.yaml     cron: the closing summary
 scripts/                 init · seed · reset
 ```
 
-Both drivers speak `?` placeholders; the Postgres driver rewrites them to
-`$1..$n`. Keep `db/schema.sqlite.sql` and `db/schema.postgres.sql` in step.
+The query layer writes `?` placeholders and the driver rewrites them to
+`$1..$n`, so the SQL reads the same as `db/schema.postgres.sql`.
 
 ---
 

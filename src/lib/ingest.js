@@ -38,7 +38,7 @@ async function process(complaint) {
       return;
     }
 
-    // local mode: do the agent's job in-process against SQLite.
+    // local mode: do the agent's job in-process, writing to the same cluster.
     const parsed = await classify(complaint.body);
     const ticket = await insertTicket(toRow(parsed, { complaintId: complaint.id }));
     await markComplaint(complaint.id, { status: 'ticketed' });

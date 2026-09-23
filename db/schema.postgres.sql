@@ -1,5 +1,7 @@
--- The Complaints Department — PostgreSQL schema (DigitalOcean Managed Postgres).
--- Mirrors db/schema.sqlite.sql. Keep the two in step.
+-- The Complaints Department — schema for DigitalOcean Managed Postgres.
+--
+-- The only schema there is. Local runs point at the deployed cluster via
+-- scripts/link-local.sh, so there is no second dialect to keep in step.
 
 CREATE TABLE IF NOT EXISTS complaints (
   id            BIGSERIAL   PRIMARY KEY,
