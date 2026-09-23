@@ -13,5 +13,8 @@
     <span><%= t.affected_users %> affected</span>
     <span>SLA <%= t.sla_hours %>h</span>
     <span>#<%= t.id %></span>
+    <% if (t.issue_url) { %>
+      <a href="<%= t.issue_url %>" target="_blank" rel="noopener">GH #<%= t.issue_number %></a>
+    <% } %>
   </div>
 </article>

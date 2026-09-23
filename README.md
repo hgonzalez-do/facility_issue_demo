@@ -28,6 +28,7 @@ sequenceDiagram
     participant VM as microVM session
     participant Inf as DO inference
     participant PG as Managed Postgres
+    participant GH as GitHub issues
     participant Wall as The wall
 
     Guest->>App: one sentence
@@ -41,6 +42,9 @@ sequenceDiagram
     Inf-->>VM: title, component, severity, owner, SLA, root cause
     VM->>PG: INSERT the ticket
     Note over VM: sandbox is discarded
+
+    VM->>GH: open a GitHub issue
+    VM->>PG: link the issue to the ticket
 
     Wall->>PG: poll
     PG-->>Wall: new ticket
@@ -145,6 +149,10 @@ fills the wall instantly without touching an agent.
 - **The agent's database role can insert a ticket and close a complaint, and
   nothing else** — it cannot read what anyone wrote. Enforced by Postgres
   grants, asserted at deploy time.
+- **Each ticket also opens a GitHub issue**, labelled by severity and
+  component, when `GITHUB_ISSUE_TOKEN` is set. The database row is written
+  first and the issue second, so a GitHub failure costs a link, not a ticket.
+  Leave the token unset and the step is skipped entirely.
 - **The form is rate limited**, and the inference service allows 240
   requests/minute per team. A full room fits; a full room twice in one minute
   does not.

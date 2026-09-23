@@ -56,6 +56,8 @@ set +a
 : "${INFERENCE_MODEL:=anthropic-claude-opus-5}"
 : "${MARS_TICKET_TABLE:=tickets}"
 : "${DB_NAME:=complaints}"
+: "${GITHUB_ISSUE_REPO:=}"
+: "${GITHUB_ISSUE_TOKEN:=}"
 : "${SUMMARY_CRON:=}"
 : "${SUMMARY_TIMEZONE:=America/New_York}"
 
@@ -225,6 +227,27 @@ step "3/5  Harness Runtime webhook trigger"
 
 export INFERENCE_BASE_URL INFERENCE_MODEL INFERENCE_HOST INFERENCE_API_KEY
 export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST DB_PUBLIC_IP
+export GITHUB_ISSUE_REPO GITHUB_ISSUE_TOKEN
+
+if [ -n "$GITHUB_ISSUE_TOKEN" ] && [ -n "$GITHUB_ISSUE_REPO" ]; then
+  info "tickets will also open issues in $GITHUB_ISSUE_REPO"
+elif [ -n "$GITHUB_ISSUE_REPO" ]; then
+  warn "GITHUB_ISSUE_REPO is set but GITHUB_ISSUE_TOKEN is not — no issues will be opened"
+fi
+
+# The spec actually sent, and the extra --secret args, both depend on whether
+# a GitHub token is configured. An empty --secret is rejected outright, and a
+# placeholder would be worse: the prompt skips the issue step only when
+# GITHUB_TOKEN is absent from the environment, so a dummy value would have the
+# agent confidently posting to GitHub with a credential that cannot work.
+COMPLAINT_SPEC="$SCRIPT_DIR/.complaint-agent.rendered.yaml"
+if [ -n "$GITHUB_ISSUE_TOKEN" ]; then
+  cp agents/complaint-agent.yaml "$COMPLAINT_SPEC"
+  gh_secret=(--secret "GITHUB_TOKEN=${GITHUB_ISSUE_TOKEN}")
+else
+  grep -v '^  GITHUB_TOKEN:' agents/complaint-agent.yaml > "$COMPLAINT_SPEC"
+  gh_secret=()
+fi
 
 WEBHOOK_TRIGGER="${STACK_NAME}-intake"
 MARS_WEBHOOK_URL="$(state_get webhook_url)"
@@ -240,17 +263,18 @@ if [ -n "$existing" ] && [ -n "$MARS_WEBHOOK_URL" ] && [ -n "$MARS_WEBHOOK_SECRE
   # doing nothing while the old wording kept running — a silent no-op that is
   # very hard to spot from the outside. Updating in place keeps the webhook
   # URL and its secret, which recreating would not.
-  doctl harness-runtime validate agents/complaint-agent.yaml >/dev/null \
+  doctl harness-runtime validate "$COMPLAINT_SPEC" >/dev/null \
     || die "agents/complaint-agent.yaml failed validation."
 
-  doctl harness-runtime triggers update "$existing" \
+  update_out="$(doctl harness-runtime triggers update "$existing" \
     --prompt "$(cat agents/complaint-prompt.txt)" \
-    --spec agents/complaint-agent.yaml \
+    --spec "$COMPLAINT_SPEC" \
     --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
     --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
-    >/dev/null 2>&1 \
+    ${gh_secret[@]+"${gh_secret[@]}"} 2>&1)" \
     && ok "trigger $WEBHOOK_TRIGGER updated with the current prompt and manifest" \
-    || warn "trigger $WEBHOOK_TRIGGER exists but could not be updated — it is still running its previous prompt"
+    || warn "trigger $WEBHOOK_TRIGGER could not be updated, so it is STILL RUNNING ITS PREVIOUS PROMPT:
+    $(printf '%s' "$update_out" | tail -3 | tr '\n' ' ')"
   state_set webhook_trigger_id "$existing"
 else
   if [ -n "$existing" ]; then
@@ -260,7 +284,7 @@ else
     doctl harness-runtime triggers delete "$existing" --force >/dev/null 2>&1 || true
   fi
 
-  doctl harness-runtime validate agents/complaint-agent.yaml >/dev/null \
+  doctl harness-runtime validate "$COMPLAINT_SPEC" >/dev/null \
     || die "agents/complaint-agent.yaml failed validation."
 
   info "creating $WEBHOOK_TRIGGER"
@@ -268,10 +292,11 @@ else
     --kind webhook --provider custom \
     --name "$WEBHOOK_TRIGGER" \
     --session-mode fresh \
-    --spec agents/complaint-agent.yaml \
+    --spec "$COMPLAINT_SPEC" \
     --prompt "$(cat agents/complaint-prompt.txt)" \
     --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
     --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
+    ${gh_secret[@]+"${gh_secret[@]}"} \
     --output json 2>&1)" || die "trigger creation failed:\n$created"
 
   MARS_WEBHOOK_URL="$(echo "$created" | first_of '(.webhook.webhook_url // .webhook_url)')"

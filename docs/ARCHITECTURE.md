@@ -13,8 +13,16 @@ flowchart LR
     V -->|classify| I[DO inference]
     I --> V
     V -->|INSERT ticket| PG
+    V -->|open issue| GH[GitHub issues]
+    V -->|link issue to ticket| PG
     PG -->|poll| W[watcher] -->|SSE| D[dashboard]
 ```
+
+The ticket is written before the issue, deliberately. GitHub is the step most
+likely to fail on a conference network, and a ticket that lands without a
+link is a far better outcome than a run that dies holding a good ticket. The
+agent is told not to retry the insert and not to treat a GitHub failure as a
+failed run.
 
 The app never classifies anything and never writes a ticket. It stores the
 complaint, fires a signed webhook, and reads the result back later.

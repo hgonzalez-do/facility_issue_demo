@@ -26,7 +26,12 @@ CREATE TABLE IF NOT EXISTS tickets (
   sla_hours              INTEGER     NOT NULL,
   root_cause_hypothesis  TEXT        NOT NULL,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
-  session_id             TEXT
+  session_id             TEXT,
+  -- Filled in by the agent after it opens the GitHub issue. Nullable on
+  -- purpose: the ticket is written first and the issue second, so a GitHub
+  -- outage costs you a link, not a ticket.
+  issue_number           INTEGER,
+  issue_url              TEXT
 );
 
 CREATE TABLE IF NOT EXISTS summaries (

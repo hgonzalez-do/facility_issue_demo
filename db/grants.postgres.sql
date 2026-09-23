@@ -44,6 +44,10 @@ GRANT USAGE  ON SEQUENCE tickets_id_seq TO mars_writer;
 -- agent still cannot read a single ticket it or anyone else has filed.
 GRANT SELECT (id) ON TABLE tickets TO mars_writer;
 
+-- And the two columns it fills in after opening the GitHub issue. Still no
+-- UPDATE on anything describing the ticket itself.
+GRANT UPDATE (issue_number, issue_url) ON TABLE tickets TO mars_writer;
+
 -- Close the loop on the complaint it was handed: three columns, no more.
 GRANT UPDATE (status, error, session_id) ON TABLE complaints TO mars_writer;
 

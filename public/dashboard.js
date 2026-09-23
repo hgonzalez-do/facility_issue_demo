@@ -42,6 +42,9 @@
         '<span>' + esc(t.affected_users) + ' affected</span>' +
         '<span>SLA ' + esc(t.sla_hours) + 'h</span>' +
         '<span>#' + esc(t.id) + '</span>' +
+        (t.issue_url
+          ? '<a href="' + esc(t.issue_url) + '" target="_blank" rel="noopener">GH #' + esc(t.issue_number) + '</a>'
+          : '') +
       '</div>';
     return el;
   }

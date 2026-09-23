@@ -46,6 +46,10 @@ env:
   # Where the ticket goes. Read by the prompt, not by the harness.
   TICKET_TABLE: ${MARS_TICKET_TABLE}
 
+  # owner/repo that gets a GitHub issue per ticket. The prompt skips the
+  # whole step when GITHUB_TOKEN is absent, so this is safe to leave set.
+  GITHUB_ISSUE_REPO: ${GITHUB_ISSUE_REPO}
+
 secrets:
   # A DigitalOcean model access key, not an Anthropic key — the base URL above
   # points at DigitalOcean, and this is the credential that service expects.
@@ -56,6 +60,12 @@ secrets:
   # See db/grants.postgres.sql. The boundary is enforced by Postgres, not by
   # trusting the prompt.
   MARS_DATABASE_URL: ${MARS_DATABASE_URL}
+
+  # Fine-grained PAT, Issues: read+write on GITHUB_ISSUE_REPO and nothing
+  # else. Empty is a supported state: the agent files the ticket and skips
+  # the issue. Do not reuse a broad `repo`-scoped token here — this value
+  # lives in a sandbox that runs model-authored shell commands.
+  GITHUB_TOKEN: ${GITHUB_ISSUE_TOKEN}
 
 
 permissions:

@@ -65,6 +65,11 @@ await client.connect();
 try {
   const schema = await fs.readFile(path.join(dbDir, 'schema.postgres.sql'), 'utf8');
   await client.query(schema);
+
+  // CREATE TABLE IF NOT EXISTS will not add a column to a table that already
+  // exists, so bring older clusters forward explicitly.
+  await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS issue_number INTEGER');
+  await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS issue_url TEXT');
   console.log('  schema applied');
 
   const grants = (await fs.readFile(path.join(dbDir, 'grants.postgres.sql'), 'utf8'))
@@ -92,6 +97,8 @@ try {
     ['mars_writer', 'SELECT', 'tickets', 'id',    true],
     ['mars_writer', 'SELECT', 'tickets', 'title', false],
     ['mars_writer', 'SELECT', 'tickets', 'root_cause_hypothesis', false],
+    ['mars_writer', 'UPDATE', 'tickets', 'issue_url', true],
+    ['mars_writer', 'UPDATE', 'tickets', 'title',     false],
     ['mars_writer', 'SELECT', 'complaints', 'id',   true],
     ['mars_writer', 'SELECT', 'complaints', 'body', false],
     ['mars_writer', 'UPDATE', 'complaints', 'status', true],
