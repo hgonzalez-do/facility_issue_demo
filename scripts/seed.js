@@ -3,12 +3,15 @@
  * Fills the dashboard with plausible traffic so you can rehearse, take
  * screenshots, or check the layout without standing in front of 200 people.
  *
- *   node scripts/seed.js            # 12 canned complaints, real classification
- *   node scripts/seed.js --fake     # no API calls; deterministic fake tickets
+ *   node scripts/seed.js --fake     # instant, no agents, deterministic rows
+ *   node scripts/seed.js            # fires the real trigger: one microVM each
  *   node scripts/seed.js -n 40      # more, cycling through the canned list
+ *
+ * Without --fake this is the demo doing its actual job, so it costs sandbox
+ * time and takes as long as the agents take. Tickets appear as they land.
  */
 import { initDb, closeDb, insertComplaint, insertTicket, markComplaint } from '../src/db/index.js';
-import { classify } from '../src/lib/classify.js';
+import { submitComplaint } from '../src/lib/ingest.js';
 import { toRow, COMPONENTS, OWNERS, SEVERITIES, SLA_HOURS } from '../src/lib/ticket-schema.js';
 
 const GRIEVANCES = [
@@ -59,27 +62,40 @@ function fakeTicket(body, i) {
 
 await initDb();
 
-console.log(`Seeding ${count} complaint${count === 1 ? '' : 's'}${fake ? ' (fake tickets, no API calls)' : ''}…\n`);
+console.log(
+  `Seeding ${count} complaint${count === 1 ? '' : 's'}` +
+    `${fake ? ' (fake tickets, no agents)' : ' through the real trigger'}…\n`,
+);
 
 let ok = 0;
 let failed = 0;
 
 for (let i = 0; i < count; i++) {
   const body = GRIEVANCES[i % GRIEVANCES.length];
-  const complaint = await insertComplaint({ body, source: 'seed' });
 
-  try {
-    const parsed = fake ? fakeTicket(body, i) : await classify(body);
-    const ticket = await insertTicket(toRow(parsed, { complaintId: complaint.id }));
+  if (fake) {
+    const complaint = await insertComplaint({ body, source: 'seed' });
+    const ticket = await insertTicket(toRow(fakeTicket(body, i), { complaintId: complaint.id }));
     await markComplaint(complaint.id, { status: 'ticketed' });
     ok += 1;
     console.log(`  ${String(ticket.severity).padEnd(2)} ${ticket.component.padEnd(28)} ${ticket.title}`);
+    continue;
+  }
+
+  // The real path: hand it to Harness Runtime and let an agent do the work.
+  try {
+    const complaint = await submitComplaint({ body, source: 'seed' });
+    ok += 1;
+    console.log(`  queued #${complaint.id}  ${body}`);
   } catch (err) {
     failed += 1;
-    await markComplaint(complaint.id, { status: 'failed', error: err.message });
     console.error(`  !! ${body} — ${err.message}`);
   }
 }
 
-console.log(`\nDone. ${ok} filed, ${failed} failed.`);
+if (!fake) {
+  console.log('\nTriggers fired. Tickets will appear on the wall as the agents finish.');
+}
+
+console.log(`Done. ${ok} ${fake ? 'filed' : 'queued'}, ${failed} failed.`);
 await closeDb();

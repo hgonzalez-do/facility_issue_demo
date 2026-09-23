@@ -37,7 +37,6 @@ DB_CA_CERT=${ca}
 
 # Submissions fire the real webhook trigger, so real microVMs write the rows
 # and this process only ever reads them back.
-INGEST_MODE=mars
 MARS_WEBHOOK_URL=$(jq -r .webhook_url .deploy-state.json)
 MARS_WEBHOOK_SECRET=$(jq -r .webhook_secret .deploy-state.json)
 MARS_TICKET_TABLE=tickets

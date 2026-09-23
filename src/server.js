@@ -72,7 +72,7 @@ async function main() {
     } catch {
       /* startup validation already rejected an unusable URL */
     }
-    console.log(`    ingest: ${config.ingest.mode}   database: ${dbHost}`);
+    console.log(`    database: ${dbHost}`);
     console.log('');
   });
 

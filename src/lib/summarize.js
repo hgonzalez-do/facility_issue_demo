@@ -43,10 +43,10 @@ headcount, justified by the ticket volume and SLA pressure in the data.`;
  * The closing beat of the talk: total tickets, top three components by volume,
  * and a recommended headcount ask for Facilities.
  *
- * In mars mode a cron trigger runs this same job inside a Harness Runtime
- * session (see agents/summary-agent.yaml). This implementation is what
- * INGEST_MODE=local uses, and what the "Run now" button on the dashboard calls
- * so you can rehearse the ending without waiting for a cron.
+ * The scheduled path is a cron trigger running agents/summary-agent.yaml.
+ * This in-process copy exists only so the "Generate now" button can rehearse
+ * the ending without waiting for the clock. Keep its instructions in step
+ * with agents/summary-prompt.txt — they are two statements of one job.
  */
 export async function generateSummary() {
   const s = await stats();

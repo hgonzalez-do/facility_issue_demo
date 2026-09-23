@@ -63,11 +63,8 @@ services:
         value: ${DB_CA_CERT_B64}
 
       # ── ingest ──────────────────────────────────────────────────────────
-      # mars: every complaint fires a webhook trigger and a fresh microVM
-      # writes the ticket. This app only ever reads them back.
-      - key: INGEST_MODE
-        scope: RUN_TIME
-        value: mars
+      # Every complaint fires the webhook trigger and a fresh microVM writes
+      # the ticket. This app only ever reads them back.
       - key: MARS_TICKET_TABLE
         scope: RUN_TIME
         value: tickets

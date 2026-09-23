@@ -16,8 +16,6 @@ function int(v, dflt) {
   return Number.isFinite(n) ? n : dflt;
 }
 
-const ingestMode = (process.env.INGEST_MODE || 'local').toLowerCase();
-
 export const config = {
   port: int(process.env.PORT, 3000),
   env: process.env.NODE_ENV || 'development',
@@ -38,8 +36,10 @@ export const config = {
     url: process.env.DATABASE_URL || '',
   },
 
+  // Every complaint goes to Harness Runtime. There is no in-process path:
+  // the agent's instructions live in agents/complaint-prompt.txt and are run
+  // by the trigger, so there is only one prompt and only one thing to test.
   ingest: {
-    mode: ingestMode, // 'local' | 'mars'
     webhookUrl: process.env.MARS_WEBHOOK_URL || '',
     webhookSecret: process.env.MARS_WEBHOOK_SECRET || '',
     ticketTable: process.env.MARS_TICKET_TABLE || 'tickets',
@@ -79,16 +79,15 @@ export function validateConfig() {
       'DATABASE_URL is not set. For a local run against the deployed cluster: ./scripts/link-local.sh > .env.local',
     );
   }
-  if (!['local', 'mars'].includes(config.ingest.mode)) {
-    problems.push(`INGEST_MODE must be "local" or "mars", got "${config.ingest.mode}"`);
-  }
-  if (config.ingest.mode === 'local' && !config.inference.apiKey) {
+  if (!config.ingest.webhookUrl) {
     problems.push(
-      'INGEST_MODE=local requires INFERENCE_API_KEY (a DigitalOcean model access key, or a PAT with all scopes)',
+      'MARS_WEBHOOK_URL is not set. For a local run against the deployed trigger: ./scripts/link-local.sh > .env.local',
     );
   }
-  if (config.ingest.mode === 'mars' && !config.ingest.webhookUrl) {
-    problems.push('INGEST_MODE=mars requires MARS_WEBHOOK_URL');
+  if (!config.inference.apiKey) {
+    problems.push(
+      'INFERENCE_API_KEY is not set (a DigitalOcean model access key, or a PAT with all scopes)',
+    );
   }
   if (config.isProd && config.admin.sessionSecret === 'dev-only-change-me') {
     problems.push('SESSION_SECRET is still the default — set a real one in production');

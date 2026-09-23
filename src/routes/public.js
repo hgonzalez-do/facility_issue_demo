@@ -97,5 +97,5 @@ publicRouter.get('/qr', (req, res) => {
 });
 
 publicRouter.get('/healthz', (req, res) => {
-  res.json({ ok: true, mode: config.ingest.mode });
+  res.json({ ok: true });
 });

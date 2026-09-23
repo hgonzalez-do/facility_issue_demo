@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS complaints (
   -- pending | processing | ticketed | failed
   status        TEXT        NOT NULL DEFAULT 'pending',
   error         TEXT,
-  -- MARS session that processed this complaint, when INGEST_MODE=mars
+  -- The Harness Runtime session that processed this complaint
   session_id    TEXT
 );
 

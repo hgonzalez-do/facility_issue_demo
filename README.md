@@ -125,8 +125,13 @@ flowchart LR
 ```
 
 Submissions still fire the live trigger and still spawn real microVMs; only
-the web tier has moved. Set `INGEST_MODE=local` in `.env.local` to classify
-in-process instead — faster to iterate on the prompt, same database.
+the web tier has moved. There is no in-process shortcut — the agent's
+instructions live in `agents/complaint-prompt.txt` and that is the only copy,
+so what you test is what the demo runs.
+
+Iterating on that prompt: edit it, `./deploy.sh` to push it to the trigger,
+then submit. For layout and CSS work, `node scripts/seed.js --fake -n 20`
+fills the wall instantly without touching an agent.
 
 ---
 

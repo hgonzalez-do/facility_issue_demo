@@ -81,7 +81,6 @@ adminRouter.get('/', async (req, res, next) => {
       recent: recent.tickets,
       summary,
       sessions,
-      mode: config.ingest.mode,
       dbHost: dbHostLabel(),
     });
   } catch (err) {
@@ -133,7 +132,7 @@ adminRouter.get('/complaints', async (req, res, next) => {
 adminRouter.get('/wall', async (req, res, next) => {
   try {
     const [s, recent] = await Promise.all([stats(), listTickets({ limit: 12 })]);
-    res.render('wall', { stats: s, recent: recent.tickets, mode: config.ingest.mode });
+    res.render('wall', { stats: s, recent: recent.tickets });
   } catch (err) {
     next(err);
   }

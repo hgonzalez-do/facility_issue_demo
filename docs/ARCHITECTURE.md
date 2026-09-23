@@ -2,32 +2,7 @@
 
 How the app is put together. For running the demo, see the [README](../README.md).
 
-## Two ingest modes
-
-`INGEST_MODE` decides how a grievance becomes a ticket. The app is otherwise
-identical in both.
-
-### `local` — development
-
-```mermaid
-flowchart LR
-    B[browser] -->|POST /complain| A[app]
-    A -->|INSERT complaint| PG[(Managed Postgres)]
-    A -->|classify| I[DO inference]
-    I --> A
-    A -->|INSERT ticket| PG
-    PG -->|poll| W[watcher] -->|SSE| D[dashboard]
-```
-
-The app does the agent's job itself. Faster to iterate on the prompt, and it
-does not consume sandbox time — but it is not the demo, because nothing is
-isolated per complaint.
-
-Note the database is the same deployed cluster either way. There is no local
-database: `scripts/link-local.sh` writes `DATABASE_URL` and the cluster CA
-into `.env.local`, which overrides `.env`.
-
-### `mars` — the demo
+## How a complaint becomes a ticket
 
 ```mermaid
 flowchart LR
@@ -41,16 +16,19 @@ flowchart LR
     PG -->|poll| W[watcher] -->|SSE| D[dashboard]
 ```
 
-The app never sees the ticket get written. That is the point: 200 people can
-submit at once, the web tier stays a web server, and the room watches dozens of
-isolated sandboxes spin up and finish.
+The app never classifies anything and never writes a ticket. It stores the
+complaint, fires a signed webhook, and reads the result back later.
 
-**Why polling.** In `mars` mode the `INSERT` happens inside an agent's sandbox
-on another machine. The database is the only thing both sides can observe, so
-`src/lib/ticket-watcher.js` polls it and fans out over SSE. The same loop covers
-`local` mode for free.
+There is deliberately no in-process alternative. An earlier version had one,
+and the two copies of the prompt drifted within a day — the in-process copy
+kept an example that had already been found to make the agent file the
+example instead of the complaint. The instructions now live in exactly one
+place, `agents/complaint-prompt.txt`, and the only way to run them is the way
+the demo does.
 
----
+**Why polling.** The `INSERT` happens inside an agent's sandbox on another
+machine. The database is the only thing both sides can observe, so
+`src/lib/ticket-watcher.js` polls it and fans out over SSE.
 
 ## Inference
 
