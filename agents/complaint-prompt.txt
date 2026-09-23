@@ -121,42 +121,50 @@ work around it, and do not switch to a different credential.
 
 ── Filing it in the tracker ─────────────────────────────────────────────────
 
-Then open a GitHub issue for the ticket, in a second step.
+Then open a GitHub issue for the ticket, using your Action Gateway tools.
 
-If GITHUB_TOKEN is not in the environment, skip this section entirely and
-finish — the ticket is already written and that is what the wall shows.
+There is no GitHub token in this sandbox, and that is deliberate: Action
+Gateway holds the credential and supplies it when the tool runs, so it never
+enters your context. Do not look for one, and do not fall back to curl
+against api.github.com — that call has nothing to authenticate with.
+
+$GITHUB_ISSUE_REPO is "owner/repo". Split it on the slash: the part before is
+`owner`, the part after is `repo`. Both tools need them separately.
+
+  1. github_create_issue(owner, repo, title, body)
+
+       title  the ticket title, exactly as filed
+       body   markdown, in this shape:
+
+                **Component** · **Severity** · **Owner** · SLA <n>h
+                **Affected users:** <n>
+
+                > <the original complaint, verbatim, as a quote>
+
+                **Root cause hypothesis**
+                <the one-line hypothesis>
+
+                ---
+                <sub>Filed automatically by The Complaints Department ·
+                ticket #<id> · session <SESSION_ID></sub>
+
+     It returns `number` and `html_url`. Keep both.
+
+  2. github_add_issue_labels(owner, repo, issue_number, labels)
+     with labels [<severity>, <component>], e.g. ["P3", "Beverages"].
+
+     Labels are a separate call because create_issue does not accept them.
+     If it fails because a label does not exist, create the missing one with
+     github_create_label(owner, repo, name, color) — severities are
+     P1 b60205, P2 ea580c, P3 ca8a04, P4 64748b, and any component is
+     0069ff — then retry the labels once. If it still fails, leave the issue
+     unlabelled. An unlabelled issue is fine; no issue is not.
 
 Order matters and it is not negotiable: the database row comes first, the
-issue second. If GitHub errors, rate-limits, or hangs, you still succeeded —
-report the ticket id and stop. Never retry the INSERT, and never let a GitHub
-failure turn a filed ticket into a failed run. A missing link is a footnote;
-a missing ticket is a hole in the demo.
-
-  POST https://api.github.com/repos/$GITHUB_ISSUE_REPO/issues
-    Authorization: Bearer $GITHUB_TOKEN
-    Accept: application/vnd.github+json
-    X-GitHub-Api-Version: 2022-11-28
-
-  title   the ticket title, exactly as filed
-  labels  [<severity>, <component>]   e.g. ["P3", "Beverages"]
-  body    markdown, in this shape:
-
-            **Component** · **Severity** · **Owner** · SLA <n>h
-            **Affected users:** <n>
-
-            > <the original complaint, verbatim, as a quote>
-
-            **Root cause hypothesis**
-            <the one-line hypothesis>
-
-            ---
-            <sub>Filed automatically by The Complaints Department ·
-            ticket #<id> · session <SESSION_ID></sub>
-
-Labels that do not exist yet are rejected by the API unless they are created
-first. Create a missing label with
-POST /repos/$GITHUB_ISSUE_REPO/labels and carry on; if that also fails, post
-the issue with no labels rather than not posting it.
+issue second. If a tool errors, rate-limits, or hangs, you still succeeded —
+report the ticket id and stop. Never retry the INSERT, and never let a
+tracker failure turn a filed ticket into a failed run. A missing link is a
+footnote; a missing ticket is a hole in the demo.
 
 Finally, record the link — the same WHERE-clause rules apply, and you may
 write only these two columns:
