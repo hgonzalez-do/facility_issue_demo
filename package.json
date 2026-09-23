@@ -4,7 +4,7 @@
   "description": "The Complaints Department — a DigitalOcean MARS demo. Public gripes become sober enterprise tickets.",
   "type": "module",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "start": "node src/server.js",

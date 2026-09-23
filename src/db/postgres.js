@@ -6,7 +6,8 @@ import { splitSslMode, sslConfig, caFromEnv } from './ssl.js';
 pg.types.setTypeParser(pg.types.builtins.INT8, (v) => (v === null ? null : Number(v)));
 
 /**
- * PostgreSQL driver — DigitalOcean Managed Postgres in production.
+ * DigitalOcean Managed Postgres — the only database this app talks to, in
+ * every environment including a local `npm run dev`.
  *
  * The query layer above writes `?` placeholders, which this rewrites to
  * $1..$n. Keeping the query layer free of pg-specific syntax means the SQL

@@ -120,8 +120,8 @@ src/
   server.js              Express app, startup, graceful shutdown
   config.js              Env parsing + startup validation
   db/
-    index.js             Driver-agnostic query layer
-    postgres.js          Managed Postgres driver — the only one
+    index.js             Query layer — every statement lives here
+    postgres.js          Connection pool, TLS, ?→$n placeholders
     ssl.js               Cluster CA verification, sslmode handling
   lib/
     ticket-schema.js     The fixed schema, the vocabularies, the system prompt
