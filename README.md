@@ -12,8 +12,9 @@ The room watches its own nonsense land on a wall in real time.
 > **Unsolicited Ambient Music Genre Broadcast Within Vertical Transit Infrastructure**
 > *Elevator audio subsystem defaulted to jazz preset following maintenance cycle firmware reset.*
 
-Every card on that wall is a webhook, a fresh sandbox, an LLM call, a database
-write, and a live push to the browser.
+Every card on that wall is a webhook, a fresh microVM, an LLM call, a database
+write, a GitHub issue, and a live push to the browser — in about twenty
+seconds, however many of them arrive at once.
 
 ---
 
@@ -42,11 +43,15 @@ sequenceDiagram
     VM->>Inf: classify this grievance
     Inf-->>VM: title, component, severity, owner, SLA, root cause
     VM->>PG: INSERT the ticket
-    Note over VM: sandbox is discarded
+    Note over VM,PG: ticket first — everything after this is a bonus
 
-    VM->>AG: open a GitHub issue
-    AG->>GH: (Action Gateway supplies the credential)
+    VM->>AG: github_create_issue
+    AG->>GH: credential added here, never in the sandbox
+    GH-->>AG: issue number + url
+    AG-->>VM: issue number + url
+    VM->>AG: github_add_issue_labels
     VM->>PG: link the issue to the ticket
+    Note over VM: sandbox is discarded
 
     Wall->>PG: poll
     PG-->>Wall: new ticket
@@ -75,21 +80,23 @@ flowchart TD
     D --> WH["Webhook trigger<br/><small>one microVM per complaint</small>"]
     D --> CR["Cron trigger<br/><small>closing summary — optional</small>"]
     D --> APP["App Platform<br/><small>form · dashboard · wall</small>"]
+    C["./scripts/connect-github.sh<br/><small>OAuth — you click this one</small>"] --> AG["GitHub connection<br/><small>Action Gateway holds the credential</small>"]
 ```
 
-Re-running is safe; every step checks for what it already made. When you're
-done: `./destroy.sh`.
+Re-running is safe; every step checks for what it already made.
 
-One step cannot be automated — authorizing GitHub, because it is OAuth:
+Then one step that cannot be automated, because it is OAuth — authorizing
+GitHub, so the agents can file issues:
 
 ```bash
 ./scripts/connect-github.sh    # prints a link; open it, approve
 ```
 
-Skip it and the demo still works, minus the issues.
+Skip it and the demo still works, minus the issues. `deploy.sh` tells you
+which of the two states you are in rather than assuming.
 
 **Cost while it's up:** about $5/mo for the app and $15/mo for the database,
-plus per-session compute and tokens. Tear it down after the talk.
+plus per-session compute and tokens. `./destroy.sh` removes all of it.
 
 ---
 
@@ -110,10 +117,16 @@ Close with the executive summary: total tickets, top three components, and a
 straight-faced headcount ask for Facilities. Either let the cron trigger fire
 it on schedule, or press **Generate now** on `/admin/summary`.
 
-**Rehearsing.** `node scripts/seed.js --fake -n 20` fills the wall instantly
-with no API calls. Drop `--fake` for real classification. `npm run db:reset --
---yes` wipes between run-throughs — it targets the deployed cluster, and says
-so before it does anything.
+**Rehearsing.** `node scripts/seed.js --fake -n 20` fills the wall instantly:
+no agents, no cost, deterministic rows. Use it for layout and for checking
+the projector.
+
+Dropping `--fake` runs the real thing — one microVM and one GitHub issue per
+complaint. That is a genuine dress rehearsal, and it is the only way to
+rehearse the agent, but it spends sandbox time and leaves real issues in the
+tracker. `npm run db:reset -- --yes` wipes the database between run-throughs
+(it names the cluster before it does anything); the issues you close or
+delete yourself.
 
 ---
 
@@ -135,7 +148,8 @@ flowchart LR
     L -->|signed webhook| T["Harness Runtime trigger"]
     T --> V["microVM session"]
     V -->|writes| PG
-    A["App Platform"] -->|reads| PG
+    V -->|Action Gateway| GH["GitHub issues"]
+    A["App Platform<br/><small>still running</small>"] -->|reads| PG
 ```
 
 Submissions still fire the live trigger and still spawn real microVMs; only
@@ -161,11 +175,15 @@ fills the wall instantly without touching an agent.
   grants, asserted at deploy time.
 - **Each ticket also opens a GitHub issue**, labelled by severity and
   component, through Action Gateway — which holds the credential and
-  substitutes it when the tool runs, so no GitHub token ever reaches the
-  sandbox. Needs a one-time GitHub connection under *Managed Agents >
-  Action Gateway > Connections*; without one the step is skipped. The
-  database row is written first and the issue second, so a tracker failure
-  costs a link, not a ticket.
+  supplies it when the tool runs, so no GitHub token ever reaches the
+  sandbox. The database row is written first and the issue second, so a
+  tracker failure costs a link, not a ticket.
+- **Authorize GitHub with `./scripts/connect-github.sh`, not the control
+  panel.** Action Gateway resolves a connection by *actor*, and a
+  trigger-started session runs as your DigitalOcean account UUID — not your
+  username. A connection authorized against any other actor is invisible
+  here, and the only symptom is issues silently never appearing. The script
+  always targets the right one.
 - **The form is rate limited**, and the inference service allows 240
   requests/minute per team. A full room fits; a full room twice in one minute
   does not.
