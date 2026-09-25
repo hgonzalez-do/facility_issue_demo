@@ -75,7 +75,14 @@ tools:
   # than a bare `do.actions` also keeps the other 1,197 tools in the
   # catalogue — Jira, Supabase, Sentry, the DigitalOcean toolkit — out of
   # reach of a sandbox that files complaints about cold coffee.
-  - do.actions: [github_create_issue, github_add_issue_labels, github_create_label]
+  - do.actions:
+      tools: [github_create_issue, github_add_issue_labels, github_create_label]
+      # Hand the model these three with their input schemas up front, so it
+      # calls them directly instead of running action_search first. That is
+      # one fewer round-trip on every single complaint — visible latency in
+      # a demo where the room is watching the wall — and one fewer way for
+      # the issue step to fail before it has begun.
+      preload_tools: [github_create_issue, github_add_issue_labels, github_create_label]
 
 permissions:
   # A `permissions` block is mandatory for fresh triggers — a headless run

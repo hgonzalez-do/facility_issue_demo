@@ -195,3 +195,4 @@ fills the wall instantly without touching an agent.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — how the app is put together
 - [docs/PLATFORM-NOTES.md](docs/PLATFORM-NOTES.md) — what the platform actually
   does, as opposed to what you would reasonably assume
+- [docs/BACKLOG.md](docs/BACKLOG.md) — known work, and why each item matters

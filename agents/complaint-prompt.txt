@@ -122,7 +122,9 @@ work around it, and do not switch to a different credential.
 
 ── Filing it in the tracker ─────────────────────────────────────────────────
 
-Then open a GitHub issue for the ticket, using your Action Gateway tools.
+Then open a GitHub issue for the ticket. The tools are already in front of
+you with their schemas — call them directly. Do not run action_search first;
+there is nothing to discover.
 
 There is no GitHub token in this sandbox, and that is deliberate: Action
 Gateway holds the credential and supplies it when the tool runs, so it never
@@ -160,6 +162,10 @@ $GITHUB_ISSUE_REPO is "owner/repo". Split it on the slash: the part before is
      P1 b60205, P2 ea580c, P3 ca8a04, P4 64748b, and any component is
      0069ff — then retry the labels once. If it still fails, leave the issue
      unlabelled. An unlabelled issue is fine; no issue is not.
+
+If a tool reports that no connection is authorized, stop: the ticket is
+already written, which is what the wall shows. Report the ticket id and say
+the tracker was unavailable. Do not print the authorization URL.
 
 Order matters and it is not negotiable: the database row comes first, the
 issue second. If a tool errors, rate-limits, or hangs, you still succeeded —
