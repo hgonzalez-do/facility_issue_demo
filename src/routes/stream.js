@@ -1,29 +1,11 @@
 import express from 'express';
 import { config } from '../config.js';
-import { stats, listTickets } from '../db/index.js';
 import { bus, EVENTS } from '../lib/events.js';
 import { requireAdmin } from '../lib/auth.js';
 
-export const apiRouter = express.Router();
+export const streamRouter = express.Router();
 
-apiRouter.use(requireAdmin);
-
-apiRouter.get('/stats', async (req, res, next) => {
-  try {
-    res.json(await stats());
-  } catch (err) {
-    next(err);
-  }
-});
-
-apiRouter.get('/tickets', async (req, res, next) => {
-  try {
-    const limit = Math.min(200, Number.parseInt(String(req.query.limit ?? '50'), 10) || 50);
-    res.json(await listTickets({ limit }));
-  } catch (err) {
-    next(err);
-  }
-});
+streamRouter.use('/stream', requireAdmin);
 
 /**
  * Server-sent events: new tickets, moving stats, and the MARS session census.
@@ -32,7 +14,7 @@ apiRouter.get('/tickets', async (req, res, next) => {
  * ticket written by an agent in another microVM reaches the projector the same
  * way one written in-process does.
  */
-apiRouter.get('/stream', (req, res) => {
+streamRouter.get('/stream', (req, res) => {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache, no-transform',

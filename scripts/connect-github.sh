@@ -11,6 +11,20 @@
 # Why this needs a human: OAuth. deploy.sh can create every other resource
 # unattended, but not this.
 #
+#   ./scripts/connect-github.sh --force   re-check and print status
+#
+# A caveat this script cannot work around. The connection record and the
+# underlying GitHub token expire independently: the token can go stale while
+# the record still reports "active", and the API refuses to mint a new
+# authorization link for a connection it believes is fine. The symptom is
+# tool calls failing with "requires an OAuth connection" while everything
+# here looks healthy, and issues silently never appearing.
+#
+# When that happens, the agent's own run output contains a fresh connect link
+# and verification code — Action Gateway mints one on the failure. Use that,
+# or revoke the connection in the control panel (Managed Agents > Action
+# Gateway > Connections) and run this script again.
+#
 # The actor is the subtle part. Action Gateway resolves a connection by
 # actor id, and a *trigger-started* session runs as your DigitalOcean user
 # UUID — not as your username. A connection authorized against any other
@@ -36,11 +50,14 @@ ACTOR="$(doctl account get --format UUID --no-header | tr -d ' ')"
 API="https://api.digitalocean.com/v2/action-gateway/connections"
 AUTH=(-H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN")
 
+force=""
+[ "${1:-}" = "--force" ] && force=1
+
 existing="$(curl -sf "${AUTH[@]}" "$API" \
   | jq -r --arg a "$ACTOR" '.connections[]? | select(.provider=="github" and .user_id==$a) | .status' \
   | head -1 || true)"
 
-if [ "$existing" = "active" ]; then
+if [ "$existing" = "active" ] && [ -z "$force" ]; then
   printf "\n  %s✓%s GitHub is already authorized for actor %s\n\n" "$GREEN" "$RESET" "$ACTOR"
   exit 0
 fi
@@ -54,7 +71,12 @@ code="$(printf '%s' "$resp" | jq -r '.authorization.verification_code // empty')
 exp="$(printf '%s' "$resp"  | jq -r '.authorization.expires_at // empty')"
 
 if [ -z "$url" ]; then
-  printf "\n  %s✓%s GitHub already authorized for actor %s\n\n" "$GREEN" "$RESET" "$ACTOR"
+  # The API returns no link when it considers the connection healthy, which
+  # it does even when the token behind it has expired.
+  printf "\n  %s✓%s GitHub connection is active for actor %s\n" "$GREEN" "$RESET" "$ACTOR"
+  printf "  %sIf tools still fail with \"requires an OAuth connection\", the token\n" "$DIM"
+  printf "  behind this record has expired. Revoke the connection in the control\n"
+  printf "  panel and re-run, or use the link in the agent's run output.%s\n\n" "$RESET"
   exit 0
 fi
 

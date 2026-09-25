@@ -8,7 +8,9 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "concurrently -n server,web -c blue,magenta \"node --watch src/server.js\" \"npm --prefix web run dev\"",
+    "build": "npm --prefix web ci && npm --prefix web run build",
+    "typecheck": "npm --prefix web run build",
     "db:init": "node scripts/init-db.js",
     "db:seed": "node scripts/seed.js",
     "db:reset": "node scripts/reset.js"
@@ -17,9 +19,11 @@
     "@anthropic-ai/sdk": "^0.128.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.0.0",
-    "ejs": "^3.1.10",
     "express": "^5.1.0",
     "pg": "^8.13.1",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }
