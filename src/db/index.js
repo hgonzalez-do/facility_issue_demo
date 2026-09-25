@@ -227,6 +227,47 @@ export async function stats() {
   };
 }
 
+/**
+ * Wipes every row and restarts the sequences.
+ *
+ * `ticketStartAt` keeps ticket numbering in step with GitHub, which never
+ * reuses an issue number — so after a reset the next ticket has to continue
+ * from where the issues left off, not from 1.
+ */
+export async function resetAll({ ticketStartAt = 1 } = {}) {
+  await db().exec('DELETE FROM summaries');
+  await db().exec('DELETE FROM tickets');
+  await db().exec('DELETE FROM complaints');
+  await db().exec('ALTER SEQUENCE complaints_id_seq RESTART WITH 1');
+  await db().exec('ALTER SEQUENCE summaries_id_seq RESTART WITH 1');
+  await db().exec(`ALTER SEQUENCE tickets_id_seq RESTART WITH ${Number(ticketStartAt) || 1}`);
+}
+
+/**
+ * Where ticket numbering should resume so it stays level with GitHub.
+ *
+ * Three sources, and the highest wins:
+ *
+ *   the highest issue this demo has filed — the direct signal, but it is
+ *     zero after a wipe, and zero for seeded rows that never reached GitHub
+ *   the current ticket sequence — survives a wipe, so it carries the
+ *     alignment forward when the tickets themselves no longer can
+ *   1 — a floor for a genuinely fresh database
+ *
+ * Taking the maximum is what makes repeated resets safe. Trusting the first
+ * alone would restart at 1 after any reset with no issue-linked tickets,
+ * quietly putting ticket #1 under issue #27.
+ */
+export async function nextTicketNumber() {
+  const [issue, seq] = await Promise.all([
+    db().get('SELECT COALESCE(MAX(issue_number), 0) AS n FROM tickets'),
+    db().get("SELECT last_value, is_called FROM tickets_id_seq"),
+  ]);
+  const fromIssues = Number(issue.n) + 1;
+  const fromSeq = seq.is_called ? Number(seq.last_value) + 1 : Number(seq.last_value);
+  return Math.max(fromIssues, fromSeq, 1);
+}
+
 /* ── executive summaries ────────────────────────────────────────────────── */
 
 export async function insertSummary({ totalTickets, topComponents, headcountAsk, narrative }) {

@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Facility Issue Tracker — reset agent.
+#
+# Fired by the Reset button on the operations dashboard, between rehearsals.
+# It closes every open issue in the tracker and reports the highest issue
+# number it saw, which the app uses to keep ticket and issue numbering in
+# step.
+#
+# Why a trigger rather than the app calling Action Gateway directly: a
+# trigger-started session runs as the DigitalOcean account UUID, and that is
+# the actor the GitHub connection is authorized against. A session the app
+# created itself would run as the username actor and resolve a different
+# connection. Same reason the complaint agent is a trigger.
+#
+# It closes. It does not delete — Action Gateway has update_issue and no
+# delete, and that is the right way round: the running demo should not be
+# able to erase its own audit trail. Deletion is a human action, and lives
+# in scripts/clear-issues.sh.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: tracker-reset
+agent: opencode
+description: Closes every open issue in the tracker between rehearsals.
+
+size: mars-1vcpu-1gb
+persistent_workspace: false
+idle_timeout: 5m
+
+env:
+  ANTHROPIC_BASE_URL: ${INFERENCE_BASE_URL}/v1
+  ANTHROPIC_MODEL: ${INFERENCE_MODEL}
+  HARNESS_INFERENCE_BASE_URL: ${INFERENCE_BASE_URL}/v1
+  HARNESS_INFERENCE_MODEL: ${INFERENCE_MODEL}
+  GITHUB_ISSUE_REPO: ${GITHUB_ISSUE_REPO}
+
+secrets:
+  ANTHROPIC_API_KEY: ${INFERENCE_API_KEY}
+
+tools:
+  # No database credential here at all. This agent only touches GitHub; the
+  # app wipes its own tables, which it can already do.
+  - do.actions:
+      tools: [github_list_issues, github_update_issue]
+      preload_tools: [github_list_issues, github_update_issue]
+
+permissions:
+  default: allow
+  filesystem:
+    mode: workspace-write
+
+egress: unrestricted

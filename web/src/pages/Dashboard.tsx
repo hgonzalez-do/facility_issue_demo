@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Stat } from '@/components/Stat';
 import { Section } from '@/components/AdminShell';
+import { ResetButton } from '@/components/ResetButton';
 import { TicketCard } from '@/components/TicketCard';
 import { api, type Stats, type Summary, type Ticket } from '@/lib/api';
 
@@ -46,9 +47,24 @@ export default function Dashboard({
     }
   }
 
+  const [resetTick, setResetTick] = useState(0);
+
+  useEffect(() => {
+    if (!resetTick) return;
+    api.stats().then(setSeedStats);
+    api.tickets({ limit: 12 }).then((d) => setSeed(d.tickets));
+    api.summaries().then((d) => setSummary(d.summaries[0] ?? null));
+  }, [resetTick]);
+
   return (
     <>
-      <Section>Intake volume</Section>
+      <div className="flex flex-wrap items-center gap-3">
+        <Section>Intake volume</Section>
+        <div className="flex-1" />
+        <div className="mt-8 mb-3">
+          <ResetButton onDone={() => setResetTick((n) => n + 1)} />
+        </div>
+      </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-3">
         <Stat label="Tickets filed" value={stats?.tickets ?? 0} tone="primary" />
         <Stat label="Complaints received" value={stats?.complaints ?? 0} />

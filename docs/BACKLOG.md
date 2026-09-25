@@ -49,39 +49,6 @@ spawning a one-off session from the summary agent config would close it.
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 
-**18. A reset button in the admin UI.** Wipe tickets, complaints and
-summaries, clear the tracker, and re-align the ticket sequence — without
-dropping to a terminal between rehearsals. Currently three manual steps, one
-of which needs a number looked up by hand.
-
-Two things make this more than a button.
-
-*It is destructive, and it sits next to the thing being projected.* A stray
-click mid-talk wipes the wall. Type-the-stack-name to confirm, the way
-`destroy.sh` does, rather than a plain "are you sure".
-
-*The app cannot delete GitHub issues, and should not be able to.* **Decided:
-the button closes issues, it does not delete them.** Action Gateway's GitHub
-toolkit has `update_issue`, so a one-off session can close everything open.
-It has no delete — GitHub only exposes that through GraphQL `deleteIssue`,
-which is not in the catalogue and needs admin on the repository.
-
-That asymmetry is the right way round. The running demo should not be able
-to erase its own audit trail, and the web tier should not hold a credential
-that could. Closing is reversible; deleting is not.
-
-Deletion stays a human action, and now has a script:
-`./scripts/clear-issues.sh`. It runs as the operator's own `gh` login —
-a credential the deployed app never sees — asks for typed confirmation,
-probes GitHub for the next issue number afterwards, and re-aligns the ticket
-sequence to match. That last part is the fiddly bit the button would
-otherwise inherit: numbers are never reused, so clearing the tracker does
-not reset the counter.
-
-Still to build: the button itself, the one-off session that closes issues,
-and a way for the app to learn the next issue number without a GitHub
-credential of its own.
-
 **15. Intake has no detail view.** Clicking a complaint should open its
 progress in real time — submitted, webhook fired, session started,
 classified, ticket written, issue opened — with elapsed time per stage,

@@ -41,6 +41,10 @@ export const config = {
   // by the trigger, so there is only one prompt and only one thing to test.
   ingest: {
     webhookUrl: process.env.MARS_WEBHOOK_URL || '',
+    // Fires the reset agent, which closes open issues in the tracker.
+    // Optional: without it the reset button still wipes the database.
+    resetWebhookUrl: process.env.RESET_WEBHOOK_URL || '',
+    resetWebhookSecret: process.env.RESET_WEBHOOK_SECRET || '',
     webhookSecret: process.env.MARS_WEBHOOK_SECRET || '',
     ticketTable: process.env.MARS_TICKET_TABLE || 'tickets',
   },

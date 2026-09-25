@@ -93,6 +93,16 @@ export const api = {
 
   logout: () => fetch('/api/logout', { method: 'POST' }),
 
+  async reset() {
+    const res = await fetch('/api/reset', {
+      method: 'POST',
+      headers: { accept: 'application/json' },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new HttpError(res.status, json.error ?? 'Reset failed.');
+    return json as { database: string; tracker: string; nextTicket: number };
+  },
+
   async generateSummary() {
     const res = await fetch('/api/summaries/run', {
       method: 'POST',

@@ -5,10 +5,12 @@ import {
   listComplaints,
   stats,
   listSummaries,
+  resetAll,
+  nextTicketNumber,
 } from '../db/index.js';
 import { COMPONENTS, SEVERITIES } from '../lib/ticket-schema.js';
 import { generateSummary } from '../lib/summarize.js';
-import { sessionCensus } from '../lib/mars.js';
+import { sessionCensus, fireResetWebhook } from '../lib/mars.js';
 import {
   checkPassword,
   clearSessionCookie,
@@ -102,6 +104,44 @@ adminRouter.post('/summaries/run', async (req, res) => {
     console.error('[admin] summary failed:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+/**
+ * Reset the demo between rehearsals.
+ *
+ * Two halves, and they fail independently on purpose. The database wipe is
+ * ours and always happens. Closing the tracker's issues is the agent's job,
+ * fired as a webhook so it runs under the actor the GitHub connection is
+ * authorized against — if that is not configured or not authorized, the
+ * wipe still succeeds and the response says the tracker was left alone.
+ *
+ * Ticket numbering continues from the highest issue this demo has filed,
+ * because GitHub never reuses a number. Restarting at 1 would put ticket #1
+ * under issue #27 and make every issue footer disagree with the issue it is
+ * on.
+ */
+adminRouter.post('/reset', async (req, res) => {
+  const result = { database: 'pending', tracker: 'pending', nextTicket: 1 };
+
+  try {
+    result.nextTicket = await nextTicketNumber();
+    await resetAll({ ticketStartAt: result.nextTicket });
+    result.database = 'wiped';
+  } catch (err) {
+    console.error('[admin] reset failed:', err.message);
+    return res.status(500).json({ ...result, database: 'failed', error: err.message });
+  }
+
+  try {
+    const { fired, reason } = await fireResetWebhook();
+    result.tracker = fired ? 'closing' : `skipped — ${reason}`;
+  } catch (err) {
+    // The wipe already succeeded; do not fail the request over the tracker.
+    console.error('[admin] reset trigger failed:', err.message);
+    result.tracker = `failed — ${err.message}`;
+  }
+
+  res.json(result);
 });
 
 /** Vocabularies for the filter dropdowns. */

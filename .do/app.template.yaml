@@ -87,6 +87,15 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${MARS_WEBHOOK_SECRET}
+      # Fires the reset agent from the dashboard's Reset button. Optional:
+      # without it the button still wipes the database.
+      - key: RESET_WEBHOOK_URL
+        scope: RUN_TIME
+        value: ${RESET_WEBHOOK_URL}
+      - key: RESET_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${RESET_WEBHOOK_SECRET}
 
       # ── inference ───────────────────────────────────────────────────────
       - key: INFERENCE_BASE_URL

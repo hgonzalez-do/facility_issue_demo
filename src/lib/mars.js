@@ -87,6 +87,39 @@ export async function fireWebhook({ complaintId, body, table }) {
 }
 
 /**
+ * Fires the reset trigger, which closes every open issue in the tracker.
+ *
+ * Same signed-webhook mechanism as a complaint, and for the same reason: a
+ * trigger-started session runs as the account UUID, which is the actor the
+ * GitHub connection is authorized against. A session this process created
+ * itself would run as the username actor and find no connection.
+ */
+export async function fireResetWebhook() {
+  const { resetWebhookUrl, resetWebhookSecret } = config.ingest;
+  if (!resetWebhookUrl) return { fired: false, reason: 'no reset trigger configured' };
+
+  const payload = JSON.stringify({ action: 'reset', requested_at: new Date().toISOString() });
+  const headers = { 'content-type': 'application/json' };
+  if (resetWebhookSecret) {
+    const sig = signPayload(payload, resetWebhookSecret);
+    headers['X-DigitalOcean-Signature'] = sig;
+    headers['do-signature'] = sig;
+  }
+
+  const res = await fetch(resetWebhookUrl, {
+    method: 'POST',
+    headers,
+    body: payload,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`reset trigger returned ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return { fired: true };
+}
+
+/**
  * Live session census for the dashboard — the "scale story without saying the
  * word scale". Counts sessions by status across the team.
  */

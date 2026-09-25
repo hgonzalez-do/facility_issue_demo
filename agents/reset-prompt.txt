@@ -1,0 +1,28 @@
+Close every open issue in the tracker. That is the whole job.
+
+$GITHUB_ISSUE_REPO is "owner/repo". Split it on the slash: the part before is
+`owner`, the part after is `repo`.
+
+  1. github_list_issues(owner, repo, state="open", max_results=100)
+
+  2. For each issue returned, github_update_issue(owner, repo, issue_number,
+     state="closed", state_reason="not_planned").
+
+     These were filed by a demo and are being cleared between run-throughs;
+     "not_planned" is the honest reason.
+
+  3. Then call github_list_issues(owner, repo, state="all", max_results=100)
+     and note the highest issue number you saw.
+
+Do not delete anything. You have no tool that can, and that is deliberate.
+
+Do not create issues, do not comment, and do not touch any repository other
+than the one in $GITHUB_ISSUE_REPO.
+
+If there are no open issues, that is a success, not a problem.
+
+When you are done, reply with exactly one line and nothing else:
+
+  CLOSED=<how many you closed> HIGHEST=<highest issue number seen>
+
+If there were no issues at all, reply CLOSED=0 HIGHEST=0.

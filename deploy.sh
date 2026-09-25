@@ -126,7 +126,7 @@ state_set() {
 
 # ── 1. Managed Postgres ──────────────────────────────────────────────────────
 
-step "1/5  Managed Postgres"
+step "1/6  Managed Postgres"
 
 db_id="$(doctl databases list --format ID,Name --no-header 2>/dev/null \
   | awk -v n="$DB_CLUSTER_NAME" '$2==n {print $1}' | head -1)"
@@ -188,7 +188,7 @@ ok "database endpoint $DB_PUBLIC_HOST ($DB_PUBLIC_IP)"
 
 # ── 2. schema + least-privilege roles ────────────────────────────────────────
 
-step "2/5  Schema and roles"
+step "2/6  Schema and roles"
 
 MARS_DB_PASSWORD="$(state_get mars_db_password)"
 MARS_REPORTER_PASSWORD="$(state_get mars_reporter_password)"
@@ -222,7 +222,7 @@ MARS_REPORTER_DATABASE_URL="postgresql://mars_reporter:${MARS_REPORTER_PASSWORD}
 
 # ── 3. webhook trigger ───────────────────────────────────────────────────────
 
-step "3/5  Harness Runtime webhook trigger"
+step "3/6  Harness Runtime webhook trigger"
 
 export INFERENCE_BASE_URL INFERENCE_MODEL INFERENCE_HOST INFERENCE_API_KEY
 export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST DB_PUBLIC_IP
@@ -310,9 +310,58 @@ else
   ok "created — secret saved to .deploy-state.json (shown once, gitignored)"
 fi
 
+# ── 3b. reset trigger ────────────────────────────────────────────────────────
+
+step "4/6  Harness Runtime reset trigger"
+
+if [ -z "$GITHUB_ISSUE_REPO" ]; then
+  info "GITHUB_ISSUE_REPO not set — skipping the reset trigger."
+else
+  RESET_TRIGGER="${STACK_NAME}-reset"
+  existing_reset="$(doctl harness-runtime triggers list --output json 2>/dev/null \
+    | jq -r --arg n "$RESET_TRIGGER" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
+
+  RESET_WEBHOOK_URL="$(state_get reset_webhook_url)"
+  RESET_WEBHOOK_SECRET="$(state_get reset_webhook_secret)"
+
+  if [ -n "$existing_reset" ] && [ -n "$RESET_WEBHOOK_URL" ] && [ -n "$RESET_WEBHOOK_SECRET" ]; then
+    doctl harness-runtime triggers update "$existing_reset" \
+      --prompt "$(cat agents/reset-prompt.txt)" \
+      --spec agents/reset-agent.yaml \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      >/dev/null 2>&1 \
+      && ok "trigger $RESET_TRIGGER updated" \
+      || warn "trigger $RESET_TRIGGER could not be updated"
+  else
+    [ -n "$existing_reset" ] && doctl harness-runtime triggers delete "$existing_reset" --force >/dev/null 2>&1
+
+    doctl harness-runtime validate agents/reset-agent.yaml >/dev/null \
+      || die "agents/reset-agent.yaml failed validation."
+
+    info "creating $RESET_TRIGGER"
+    reset_out="$(doctl harness-runtime triggers create \
+      --kind webhook --provider custom \
+      --name "$RESET_TRIGGER" \
+      --session-mode fresh \
+      --spec agents/reset-agent.yaml \
+      --prompt "$(cat agents/reset-prompt.txt)" \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      --output json 2>&1)" || die "reset trigger creation failed:\n$reset_out"
+
+    RESET_WEBHOOK_URL="$(echo "$reset_out" | first_of '(.webhook.webhook_url // .webhook_url)')"
+    RESET_WEBHOOK_SECRET="$(echo "$reset_out" | first_of '(.webhook_secret // .webhook.secret // .secret)')"
+    [ -n "$RESET_WEBHOOK_URL" ] || die "no webhook_url in reset trigger response."
+
+    state_set reset_trigger_id "$(echo "$reset_out" | first_of '(.trigger_id // .id)')"
+    state_set reset_webhook_url "$RESET_WEBHOOK_URL"
+    state_set reset_webhook_secret "$RESET_WEBHOOK_SECRET"
+    ok "created"
+  fi
+fi
+
 # ── 4. cron trigger ──────────────────────────────────────────────────────────
 
-step "4/5  Harness Runtime cron trigger"
+step "5/6  Harness Runtime cron trigger"
 
 if [ -z "$SUMMARY_CRON" ]; then
   info "SUMMARY_CRON not set — skipping the scheduled summary."
@@ -355,7 +404,7 @@ fi
 
 # ── 5. App Platform ──────────────────────────────────────────────────────────
 
-step "5/5  App Platform"
+step "6/6  App Platform"
 
 SESSION_SECRET="$(state_get session_secret)"
 [ -n "$SESSION_SECRET" ] || SESSION_SECRET="$(openssl rand -hex 32)"
@@ -364,6 +413,7 @@ state_set session_secret "$SESSION_SECRET"
 export STACK_NAME DO_REGION_SLUG DB_CLUSTER_NAME DB_NAME APP_SIZE
 export GITHUB_REPO GITHUB_BRANCH
 export MARS_WEBHOOK_URL MARS_WEBHOOK_SECRET
+export RESET_WEBHOOK_URL="${RESET_WEBHOOK_URL:-}" RESET_WEBHOOK_SECRET="${RESET_WEBHOOK_SECRET:-}"
 export ADMIN_PASSWORD SESSION_SECRET
 
 # Base64 so a multi-line PEM survives the YAML round trip intact.
