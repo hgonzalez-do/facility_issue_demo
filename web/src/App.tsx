@@ -1,41 +1,18 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { Toaster } from '@/components/ui/sonner';
-import { AdminShell } from '@/components/AdminShell';
-import { useLiveFeed } from '@/lib/useLiveFeed';
+import { Suspense, lazy, useEffect, useState } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { api } from '@/lib/api';
 
+// The public pages load eagerly: a phone in the room should download the
+// form and nothing else.
 import Form from '@/pages/Form';
 import Thanks from '@/pages/Thanks';
 import Qr from '@/pages/Qr';
-import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
-import Tickets from '@/pages/Tickets';
-import Intake from '@/pages/Intake';
-import SummaryPage from '@/pages/SummaryPage';
-import Wall from '@/pages/Wall';
 
-/** Everything behind the password, sharing one SSE connection. */
-function Admin() {
-  const { tickets, stats, sessions, live, summaryTick } = useLiveFeed([], 24);
-  const { pathname } = useLocation();
-
-  // The wall is projected, so it gets the whole screen — no nav, no chrome.
-  if (pathname === '/admin/wall') return <Wall />;
-
-  return (
-    <AdminShell live={live}>
-      <Routes>
-        <Route index element={
-          <Dashboard stats={stats} sessions={sessions} tickets={tickets} summaryTick={summaryTick} />
-        } />
-        <Route path="tickets" element={<Tickets />} />
-        <Route path="complaints" element={<Intake />} />
-        <Route path="summary" element={<SummaryPage summaryTick={summaryTick} />} />
-      </Routes>
-    </AdminShell>
-  );
-}
+// Everything behind the password is split out. The admin pulls in a table,
+// a toaster and the live feed, none of which a person filing a complaint
+// has any use for — and 200 of them are on the same venue wifi at once.
+const Admin = lazy(() => import('@/pages/Admin'));
+const Login = lazy(() => import('@/pages/Login'));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<'checking' | 'in' | 'out'>('checking');
@@ -52,6 +29,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Blank rather than a spinner: the admin chunk lands in well under a second. */
+const Blank = <div className="dark bg-background min-h-dvh" />;
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -59,11 +39,20 @@ export default function App() {
         <Route path="/" element={<Form />} />
         <Route path="/thanks" element={<Thanks />} />
         <Route path="/qr" element={<Qr />} />
-        <Route path="/admin/login" element={<Login />} />
-        <Route path="/admin/*" element={<RequireAuth><Admin /></RequireAuth>} />
+        <Route
+          path="/admin/login"
+          element={<Suspense fallback={Blank}><Login /></Suspense>}
+        />
+        <Route
+          path="/admin/*"
+          element={
+            <RequireAuth>
+              <Suspense fallback={Blank}><Admin /></Suspense>
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      <Toaster theme="dark" position="bottom-right" />
     </BrowserRouter>
   );
 }
