@@ -11,7 +11,6 @@
     "dev": "concurrently -n server,web -c blue,magenta \"node --watch src/server.js\" \"npm --prefix web run dev\"",
     "build": "npm --prefix web ci && npm --prefix web run build",
     "typecheck": "npm --prefix web run build",
-    "db:init": "node scripts/init-db.js",
     "db:seed": "node scripts/seed.js",
     "db:reset": "node scripts/reset.js"
   },

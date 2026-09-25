@@ -6,6 +6,5 @@ node_modules/
 *.log
 .deploy-state.json
 .DS_Store
-.complaint-agent.rendered.yaml
 web/node_modules/
 web/dist/

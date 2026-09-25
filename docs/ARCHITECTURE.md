@@ -168,8 +168,12 @@ src/
     events.js            In-process fan-out to SSE
     auth.js              Signed-cookie admin session
   routes/                public · admin · api (SSE)
-views/                   EJS, no build step
-public/                  CSS + the SSE client
+    public.js            the form, /thanks and /qr
+    admin.js             the JSON API behind the dashboard
+    stream.js            SSE fan-out
+  lib/public-pages.js    the public HTML, inlined — a phone in the room
+                         never downloads React
+web/                     the admin front end (React · Vite · Tailwind · shadcn)
 db/                      Schema and the least-privilege grants
 agents/                  Harness Agent manifests + trigger prompts
                          complaint-agent.yaml   webhook: one session per grievance
@@ -183,7 +187,9 @@ scripts/                 deploy helpers and operational tools
                          link-local.sh       point a local run at the cluster
                          migrate-postgres.js schema, roles, privilege asserts
                          render-spec.js      App Platform spec templating
-                         seed.js · reset.js · init-db.js
+                         check-github.sh     is the GitHub connection working
+                         clear-issues.sh     delete every issue (human-run)
+                         seed.js · reset.js
 ```
 
 The query layer writes `?` placeholders and the driver rewrites them to
