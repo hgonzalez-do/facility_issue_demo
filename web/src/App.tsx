@@ -2,11 +2,8 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { api } from '@/lib/api';
 
-// The public pages load eagerly: a phone in the room should download the
-// form and nothing else.
-import Form from '@/pages/Form';
-import Thanks from '@/pages/Thanks';
-import Qr from '@/pages/Qr';
+// The public pages are not here at all — Express serves them as plain HTML
+// so a phone in the room never downloads React. See src/lib/public-pages.js.
 
 // Everything behind the password is split out. The admin pulls in a table,
 // a toaster and the live feed, none of which a person filing a complaint
@@ -36,9 +33,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Form />} />
-        <Route path="/thanks" element={<Thanks />} />
-        <Route path="/qr" element={<Qr />} />
         <Route
           path="/admin/login"
           element={<Suspense fallback={Blank}><Login /></Suspense>}
@@ -51,7 +45,8 @@ export default function App() {
             </RequireAuth>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Anything else is a public page Express owns; leave the SPA. */}
+        <Route path="*" element={<Navigate to="/admin" replace />} />
       </Routes>
     </BrowserRouter>
   );

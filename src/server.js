@@ -29,6 +29,8 @@ const app = express();
 app.set('trust proxy', true);
 
 app.use(express.json({ limit: '32kb' }));
+// The public form posts a plain HTML form, not JSON.
+app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use(cookieParser());
 
 // Order matters here, and getting it wrong is silent. adminRouter calls
@@ -62,7 +64,8 @@ if (hasClient) {
     }),
   );
 
-  // Client-side routing: anything not matched above is the SPA.
+  // Client-side routing: anything not matched above is the SPA. The public
+  // pages are registered before this and so never reach it.
   app.get(/^\/(?!api\/).*/, (req, res, next) => {
     if (req.method !== 'GET') return next();
     res.sendFile(path.join(clientDir, 'index.html'));

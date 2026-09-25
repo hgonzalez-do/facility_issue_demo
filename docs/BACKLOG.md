@@ -36,10 +36,6 @@ session still timed out on 25060 in a trigger-started one. Worth retesting.
 
 ## Demo quality
 
-**9. The public form ships a ~123 KB gzipped React bundle.** That lands on
-200 phones at once on venue wifi. It is the one page worth serving as plain
-HTML.
-
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 

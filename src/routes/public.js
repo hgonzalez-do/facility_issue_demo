@@ -2,10 +2,9 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { config } from '../config.js';
 import { submitComplaint } from '../lib/ingest.js';
+import { formPage, thanksPage, qrPage, MAX_LENGTH } from '../lib/public-pages.js';
 
 export const publicRouter = express.Router();
-
-const MAX_LENGTH = 280;
 
 /** Crude in-memory throttle. Resets on restart, which is fine for one talk. */
 const hits = new Map();
@@ -29,6 +28,52 @@ function rateLimited(ip) {
   return recent.length > max;
 }
 
+/* ── the public pages ────────────────────────────────────────────────────
+   Served as self-contained HTML rather than by the React app: this is what
+   a room full of phones loads at once, and the SPA bundle is ~112 KB
+   gzipped of admin they will never open. These are about two, in a single
+   request, and the form posts without JavaScript. */
+
+publicRouter.get('/', (req, res) => {
+  res.type('html').set('cache-control', 'no-cache').send(formPage());
+});
+
+publicRouter.get('/thanks', (req, res) => {
+  const id = Number.parseInt(String(req.query.id ?? ''), 10);
+  res.type('html').set('cache-control', 'no-cache')
+    .send(thanksPage({ id: Number.isFinite(id) ? id : null }));
+});
+
+publicRouter.get('/qr', (req, res) => {
+  res.type('html').set('cache-control', 'no-cache')
+    .send(qrPage({ target: `${req.protocol}://${req.get('host')}/` }));
+});
+
+/** The form's own target. Redirects, so the page works with no JavaScript. */
+publicRouter.post('/complain', async (req, res) => {
+  const body = String(req.body?.body ?? '').trim();
+
+  const reject = (status, error) =>
+    res.status(status).type('html').send(formPage({ error, body: body.slice(0, MAX_LENGTH) }));
+
+  if (!body) return reject(400, 'The form requires a complaint. That is the whole form.');
+  if (body.length > MAX_LENGTH) {
+    return reject(400, `One sentence, please. That was ${body.length} characters; the limit is ${MAX_LENGTH}.`);
+  }
+  if (rateLimited(req.ip)) {
+    return reject(429, 'Your grievances are being processed. Please allow the queue to drain.');
+  }
+
+  try {
+    const complaint = await submitComplaint({ body, source: 'web' });
+    return res.redirect(303, `/thanks?id=${complaint.id}`);
+  } catch (err) {
+    console.error('[public] submit failed:', err.message);
+    return reject(500, 'Intake is temporarily unavailable. Your dissatisfaction has been noted informally.');
+  }
+});
+
+/** JSON equivalent, kept for scripts and anything programmatic. */
 publicRouter.post('/api/complain', async (req, res) => {
   const body = String(req.body?.body ?? '').trim();
 
