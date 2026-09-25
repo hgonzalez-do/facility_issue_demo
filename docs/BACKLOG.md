@@ -39,62 +39,6 @@ session still timed out on 25060 in a trigger-started one. Worth retesting.
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 
-**15. Intake has no detail view.** Clicking a complaint should open its
-progress in real time — submitted, webhook fired, session started,
-classified, ticket written, issue opened — with elapsed time per stage,
-ticking while it is in flight. This is the clearest way to show that each
-complaint gets its own microVM and how long that actually takes.
-
-The data is not all there yet. `complaints` has `submitted_at` and `status`;
-`tickets` has `created_at`. Nothing records when the session started or when
-the issue was opened. Two options:
-
-- add timestamp columns (cheap, additive, matches the existing migration
-  style) and have the agent write them; or
-- read the real thing from
-  `GET /v2/agents/triggers/{id}/executions/{execution_id}`, which carries
-  `status`, `session_id`, `created_at` and `updated_at`, plus per-tool
-  timings in its output. Richer, and it is DigitalOcean's own telemetry
-  rather than our approximation — a better story for this demo. It needs the
-  complaint id correlated to an execution, which the webhook payload already
-  carries.
-
-**19. The docs have fallen behind the code.** Audited rather than guessed —
-every item below is a confirmed gap as of this writing, and most of it is
-one day's work landing faster than the prose describing it.
-
-README:
-
-- the Reset button is not mentioned at all
-- the deploy diagram shows four things `deploy.sh` creates; it now creates
-  five. The reset trigger is missing from it.
-
-docs/ARCHITECTURE.md:
-
-- the reset trigger is absent entirely — the only occurrence of "reset" is
-  `reset.js` in the file listing
-- `agents/summary-voice.txt` is not in the layout, so nothing explains why
-  the summary's instructions live outside both places that use them
-- the `scripts/` listing predates `clear-issues.sh` and `check-github.sh`
-- the complaint flow diagram does not show `preload_tools`, so it still
-  implies a discovery step that no longer happens
-
-docs/PLATFORM-NOTES.md is missing the three findings that cost the most to
-learn:
-
-- `preload_tools` exposes gateway tools with their schemas and removes the
-  `action_search` round-trip
-- **the actor split** — `harness-runtime create` runs as the username,
-  a trigger-started session runs as the account UUID, and they resolve
-  different Action Gateway connections. This is the single most expensive
-  thing discovered in this project and it is written down nowhere but here.
-- connection `status` is unreliable in both directions (see #16)
-
-The rule this keeps violating: a document that is confidently wrong is worse
-than one that is missing, because it is trusted. Worth a pass that checks
-claims against the code rather than reading for plausibility — the last such
-pass found four flatly false statements in ARCHITECTURE alone.
-
 ## Loose ends
 
 **12. A stale `hgonzalez` Action Gateway connection** reports `active` and is

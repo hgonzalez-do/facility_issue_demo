@@ -42,7 +42,12 @@ function iso(v) {
 
 function mapComplaint(r) {
   if (!r) return null;
-  return { ...r, id: Number(r.id), submitted_at: iso(r.submitted_at) };
+  return {
+    ...r,
+    id: Number(r.id),
+    submitted_at: iso(r.submitted_at),
+    dispatched_at: iso(r.dispatched_at),
+  };
 }
 
 function mapTicket(r) {
@@ -82,15 +87,57 @@ export async function getComplaint(id) {
   return mapComplaint(await db().get('SELECT * FROM complaints WHERE id = ?', [id]));
 }
 
-export async function markComplaint(id, { status, error = null, sessionId = null }) {
+export async function markComplaint(
+  id,
+  { status, error = null, sessionId = null, dispatched = false },
+) {
   await db().run(
     `UPDATE complaints
         SET status = ?,
             error = ?,
-            session_id = COALESCE(?, session_id)
+            session_id = COALESCE(?, session_id),
+            dispatched_at = CASE WHEN ? THEN now() ELSE dispatched_at END
       WHERE id = ?`,
-    [status, error, sessionId, id],
+    [status, error, sessionId, dispatched, id],
   );
+}
+
+/** One complaint with its ticket, for the intake detail view. */
+export async function complaintDetail(id) {
+  const row = await db().get(
+    `SELECT c.*,
+            t.id            AS ticket_id,
+            t.title         AS ticket_title,
+            t.component, t.severity, t.affected_users, t.suggested_owner,
+            t.sla_hours, t.root_cause_hypothesis,
+            t.created_at    AS ticket_created_at,
+            t.issue_number, t.issue_url, t.issue_at
+       FROM complaints c
+       LEFT JOIN tickets t ON t.complaint_id = c.id
+      WHERE c.id = ?`,
+    [id],
+  );
+  if (!row) return null;
+  return {
+    ...mapComplaint(row),
+    dispatched_at: iso(row.dispatched_at),
+    ticket: row.ticket_id
+      ? {
+          id: Number(row.ticket_id),
+          title: row.ticket_title,
+          component: row.component,
+          severity: row.severity,
+          affected_users: Number(row.affected_users),
+          suggested_owner: row.suggested_owner,
+          sla_hours: Number(row.sla_hours),
+          root_cause_hypothesis: row.root_cause_hypothesis,
+          created_at: iso(row.ticket_created_at),
+          issue_number: row.issue_number == null ? null : Number(row.issue_number),
+          issue_url: row.issue_url,
+          issue_at: iso(row.issue_at),
+        }
+      : null,
+  };
 }
 
 export async function listComplaints({ status = null, limit = 100 } = {}) {

@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import {
   listTickets,
   listComplaints,
+  complaintDetail,
   stats,
   listSummaries,
   resetAll,
@@ -84,6 +85,18 @@ adminRouter.get('/complaints', async (req, res, next) => {
   try {
     const status = String(req.query.status ?? '');
     res.json({ complaints: await listComplaints({ status: status || null, limit: 200 }) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminRouter.get('/complaints/:id', async (req, res, next) => {
+  try {
+    const id = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad id' });
+    const detail = await complaintDetail(id);
+    if (!detail) return res.status(404).json({ error: 'not found' });
+    res.json(detail);
   } catch (err) {
     next(err);
   }

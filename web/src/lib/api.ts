@@ -21,10 +21,29 @@ export type Complaint = {
   id: number;
   body: string;
   submitted_at: string;
+  dispatched_at?: string | null;
   source: string;
   status: 'pending' | 'processing' | 'ticketed' | 'failed';
   error: string | null;
   session_id: string | null;
+};
+
+export type ComplaintDetail = Complaint & {
+  dispatched_at: string | null;
+  ticket: {
+    id: number;
+    title: string;
+    component: string;
+    severity: string;
+    affected_users: number;
+    suggested_owner: string;
+    sla_hours: number;
+    root_cause_hypothesis: string;
+    created_at: string;
+    issue_number: number | null;
+    issue_url: string | null;
+    issue_at: string | null;
+  } | null;
 };
 
 export type Stats = {
@@ -77,6 +96,7 @@ export const api = {
     return get<{ tickets: Ticket[]; total: number }>(`/api/tickets?${q}`);
   },
   complaints: (status = '') => get<{ complaints: Complaint[] }>(`/api/complaints?status=${status}`),
+  complaint: (id: number) => get<ComplaintDetail>(`/api/complaints/${id}`),
   summaries: () => get<{ summaries: Summary[] }>('/api/summaries'),
   vocab: () => get<{ components: string[]; severities: string[] }>('/api/vocab'),
   me: () => get<{ authenticated: boolean }>('/api/me'),

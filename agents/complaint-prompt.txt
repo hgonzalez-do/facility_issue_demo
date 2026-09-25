@@ -174,8 +174,13 @@ tracker failure turn a filed ticket into a failed run. A missing link is a
 footnote; a missing ticket is a hole in the demo.
 
 Finally, record the link — the same WHERE-clause rules apply, and you may
-write only these two columns:
+write only these three columns:
 
-  UPDATE tickets SET issue_number = %s, issue_url = %s WHERE id = %s
+  UPDATE tickets
+     SET issue_number = %s, issue_url = %s, issue_at = now()
+   WHERE id = %s
+
+`issue_at` is what the operations dashboard uses to show how long the
+tracker step took; use SQL now(), not a timestamp you construct.
 
 Reply with just the ticket id and the issue number. No summary, no prose.

@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS complaints (
   status        TEXT        NOT NULL DEFAULT 'pending',
   error         TEXT,
   -- The Harness Runtime session that processed this complaint
-  session_id    TEXT
+  session_id    TEXT,
+  -- When the webhook was fired. The gap between this and submitted_at is
+  -- ours; everything after it belongs to the agent.
+  dispatched_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS tickets (
@@ -31,7 +34,10 @@ CREATE TABLE IF NOT EXISTS tickets (
   -- purpose: the ticket is written first and the issue second, so a GitHub
   -- outage costs you a link, not a ticket.
   issue_number           INTEGER,
-  issue_url              TEXT
+  issue_url              TEXT,
+  -- Set by the agent when the GitHub issue is opened, so the detail view
+  -- can show that stage rather than inferring it from issue_number.
+  issue_at               TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS summaries (

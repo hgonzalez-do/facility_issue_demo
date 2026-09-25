@@ -26,8 +26,10 @@ export async function submitComplaint({ body, source = 'web' }) {
 
 async function dispatch(complaint) {
   try {
-    await markComplaint(complaint.id, { status: 'processing' });
     await fireWebhook({ complaintId: complaint.id, body: complaint.body });
+    // Stamped after the webhook returns, so it marks when the agent was
+    // actually handed the work rather than when we intended to.
+    await markComplaint(complaint.id, { status: 'processing', dispatched: true });
     // The agent sets 'ticketed' itself once the row is in, so there is
     // nothing further to do here. The watcher notices the new ticket.
   } catch (err) {
