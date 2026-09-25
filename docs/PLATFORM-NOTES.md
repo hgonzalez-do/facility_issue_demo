@@ -18,6 +18,48 @@ a DigitalOcean maintenance page that reads exactly like an outage.
 **`HARNESS_INFERENCE_BASE_URL` is not read by `opencode`.** Set it anyway — it
 is the documented platform key — but `ANTHROPIC_BASE_URL` is what takes effect.
 
+**Trigger executions are serialized.** Fire three webhooks in the same
+second and the execution list reads `running pending pending`, then
+`succeeded running pending`: the next session starts only when the previous
+one ends. There is no concurrency field on a trigger, so this is a team
+quota — the public preview terms mention "concurrent agent run quotas"
+without a number, and the docs' Limits page 404s. Budget about one run per
+minute, and do not promise an audience that their submissions run in
+parallel until you have measured your own team's quota:
+
+```bash
+doctl harness-runtime triggers list-executions <id> --output json \
+  | jq -r 'sort_by(.created_at) | .[] | "\(.created_at) \(.status)"'
+```
+
+**A session's log outlives the session.** `doctl harness-runtime logs
+<session>` 404s within minutes of a trigger run finishing, but the
+execution record keeps the whole transcript in `output_text`, with a
+duration on every tool call. That is the only way to see where a headless
+run spent its time:
+
+```bash
+curl -s -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
+  ".../v2/agents/triggers/<trigger>/executions/<execution>" | jq -r .output_text
+```
+
+Prefer the REST endpoint to `doctl ... get-execution --output json` here:
+the CLI emits the transcript's control characters unescaped, so `jq` rejects
+its own output.
+
+**`validate` ignores keys it does not know.** `template:`,
+`sandbox_template:`, `template_id:` and `sandbox:` all return "Manifest
+looks valid" on a manifest that has none of those fields defined. It checks
+the fields it recognises rather than rejecting the ones it does not, so a
+misspelled key is a silent no-op — the same failure shape as a trigger that
+is never updated.
+
+**Custom sandbox images exist (BYOT).** `doctl harness-runtime template
+create --name X --base-template coding-opencode --source-oci-ref
+registry.digitalocean.com/reg/img:tag` rebases your image onto the platform
+base. Useful for dropping PyPI from the egress allowlist. Not useful for
+latency: installing `psycopg[binary]` costs 1.9s of a ~60s run.
+
 ## Action Gateway
 
 **A trigger-started session and a session you create run as different

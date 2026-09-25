@@ -11,15 +11,20 @@ import { emit, EVENTS } from './events.js';
  * ticket lands on the wall a few seconds later, which is the bit the room
  * actually watches.
  */
-export async function submitComplaint({ body, source = 'web' }) {
+export async function submitComplaint({ body, source = 'web', wait = false }) {
   const complaint = await insertComplaint({ body, source });
   emit(EVENTS.COMPLAINT, complaint);
 
   // Fire and forget. Failures are recorded on the complaint row, not thrown
   // at the person who just told us their chair squeaks.
-  dispatch(complaint).catch((err) => {
+  const dispatched = dispatch(complaint).catch((err) => {
     console.error(`[ingest] complaint ${complaint.id} failed:`, err.message);
   });
+
+  // `wait` is for scripts, which close the pool as soon as they return: the
+  // status update would otherwise land on a dead connection. The web path
+  // never waits — the instant thank-you page is the point.
+  if (wait) await dispatched;
 
   return complaint;
 }

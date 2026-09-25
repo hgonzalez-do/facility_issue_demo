@@ -84,7 +84,7 @@ for (let i = 0; i < count; i++) {
 
   // The real path: hand it to Harness Runtime and let an agent do the work.
   try {
-    const complaint = await submitComplaint({ body, source: 'seed' });
+    const complaint = await submitComplaint({ body, source: 'seed', wait: true });
     ok += 1;
     console.log(`  queued #${complaint.id}  ${body}`);
   } catch (err) {

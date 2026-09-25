@@ -6,7 +6,33 @@ look fine until they are not.
 
 ## Blocking
 
-*Nothing currently blocking.*
+**21. Trigger executions run one at a time.** Measured 2026-09-25: three
+complaints submitted within one second finished at +74s, +135s and +192s.
+The execution list shows `running pending pending`, then
+`succeeded running pending` — the second session does not start until the
+first ends. Two earlier bursts (seven and five submissions, 2026-09-23)
+show the same staircase, ~85s apart, so this is systematic rather than a
+bad afternoon.
+
+This makes the demo's central claim false as deployed. The README says 200
+people can submit at once and "dozens of isolated sandboxes spin up"; in
+fact the *n*th person waits about *n* minutes. Ten submissions is a ten
+minute tail. A full room never drains.
+
+Nothing in the trigger config controls this — there is no concurrency field
+— so it is a team quota. The public preview terms mention "concurrent agent
+run quotas" without giving a number, and the docs' Limits page 404s.
+
+What to do, in order:
+
+1. Ask internally for the team's concurrent-run quota to be raised. This is
+   the only fix that makes the claim true.
+2. Find out whether the quota is per-trigger or per-team. If per-trigger,
+   sharding across a handful of intake triggers is a real mitigation and
+   costs nothing. Untested — fire two different triggers at once and watch
+   whether both reach `running`.
+3. Until one of those lands, either say something honest on stage about
+   queue depth, or pre-seed the wall and submit a handful live.
 
 ## Correctness — things that report success while broken
 
@@ -118,10 +144,54 @@ shell work — waiting, retrying, prompting — it may be fine where it is.
 
 ## Loose ends
 
-**17. Runs take 60–125s end to end.** *(Deferred — revisit after the talk.)* Most of it is the agent installing a
-Postgres client per run, since the sandbox image ships none. A custom
-sandbox template with `psycopg` baked in would cut it, and would let egress
-drop PyPI (see #7).
+**17. Runs take ~60s of work, and the stated reason was wrong.**
+*(Re-measured 2026-09-25; the old entry blamed `pip install`, which is
+false.)* A single run breaks down like this, read from the session log:
+
+| | |
+| --- | --- |
+| `pip install psycopg[binary]` | **1.9s** |
+| INSERT ticket + UPDATE complaint | 1.3s |
+| `github_create_issue` | 2.5s |
+| `github_add_issue_labels` | 2.1s |
+| link the issue back to the ticket | 1.1s |
+| everything else (`echo`, heredoc) | 0.2s |
+| **total tool execution** | **~9–11s** |
+| **total run** | **~57–74s** |
+
+So roughly 85% of a run is not tool execution at all. It is sandbox startup
+plus model generation: the agent emits 1,400–2,600 output tokens across
+7–15 round-trips, and each round-trip is a call to
+`inference.do-ai.run`. The database work — install included — is about
+**4s, or 6% of a run**.
+
+Two consequences.
+
+*Moving the database write to an HTTP endpoint would not help.* It would
+save maybe 3 of those 4 seconds, add an App Platform dependency to the
+ticket write, and cost the Postgres grants in `db/grants.postgres.sql` —
+which are the one boundary in this demo that cannot be argued with. Not
+worth it. (Asked and answered; recorded here so it is not re-proposed.)
+
+*A custom sandbox template saves 1.9s, not 40.* BYOT is real — `doctl
+harness-runtime template create --base-template coding-opencode
+--source-oci-ref …` rebases your own OCI image onto the platform base — and
+it would still let egress drop PyPI (see #7). But as a latency fix it is
+now a rounding error. Do it for #7, not for speed.
+
+The actual lever is round-trips and output tokens:
+
+- Run #1 of the three used `todowrite` seven times, took 15 steps, emitted
+  2,621 tokens and cost **$0.33**. Runs #2 and #3 used it zero times, took
+  10 and 7 steps, and cost **$0.18** and **$0.13**. Telling the prompt not
+  to keep a todo list is free and roughly halves the cost.
+- Even the leanest run (7 steps, 1,404 tokens) still took ~57s, so
+  round-trips alone do not explain it. Worth timing a single bare inference
+  call against `qwen3.8-max` to separate model latency from sandbox
+  startup before optimising further.
+
+Cost note while it is measured: **$0.13–$0.33 per complaint**. A 200-person
+room is $26–66 in inference alone.
 
 **14. The `.envrc` token** has been sitting in cleartext since the start and
 is now the live credential for this stack. Rotate it.
