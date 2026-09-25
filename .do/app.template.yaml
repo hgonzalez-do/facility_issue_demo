@@ -47,6 +47,10 @@ services:
       branch: ${GITHUB_BRANCH}
       deploy_on_push: true
 
+    # The React client is built during deploy and served by Express from
+    # web/dist. Without this the buildpack installs the server's deps and
+    # ships no client at all — the app boots and every page 503s.
+    build_command: npm run build
     run_command: npm start
 
     health_check:

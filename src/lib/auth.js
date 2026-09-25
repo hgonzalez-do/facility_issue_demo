@@ -57,12 +57,6 @@ export function clearSessionCookie(res) {
 
 export function requireAdmin(req, res, next) {
   if (verifyToken(req.cookies?.[config.admin.cookieName])) return next();
-
-  const wantsJson =
-    req.path.startsWith('/api/') || req.get('accept')?.includes('application/json');
-
-  if (wantsJson) return res.status(401).json({ error: 'unauthorised' });
-
-  const target = encodeURIComponent(req.originalUrl);
-  return res.redirect(`/admin/login?next=${target}`);
+  // The whole surface is JSON now — the SPA turns a 401 into a redirect.
+  return res.status(401).json({ error: 'unauthorised' });
 }

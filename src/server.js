@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -7,10 +8,11 @@ import { initDb, closeDb } from './db/index.js';
 import { startTicketWatcher, startSessionWatcher } from './lib/ticket-watcher.js';
 import { publicRouter } from './routes/public.js';
 import { adminRouter } from './routes/admin.js';
-import { apiRouter } from './routes/api.js';
+import { streamRouter } from './routes/stream.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
+const clientDir = path.join(root, 'web', 'dist');
 
 const problems = validateConfig();
 if (problems.length) {
@@ -25,28 +27,61 @@ const app = express();
 // App Platform terminates TLS upstream; trust it so req.protocol and req.ip
 // reflect the real client rather than the proxy.
 app.set('trust proxy', true);
-app.set('view engine', 'ejs');
-app.set('views', path.join(root, 'views'));
 
-app.use(express.urlencoded({ extended: false, limit: '32kb' }));
 app.use(express.json({ limit: '32kb' }));
 app.use(cookieParser());
-app.use(express.static(path.join(root, 'public'), { maxAge: config.isProd ? '1h' : 0 }));
 
-app.use('/api', apiRouter);
-app.use('/admin', adminRouter);
+// Order matters here, and getting it wrong is silent. adminRouter calls
+// `use(requireAdmin)` for everything that reaches it, so mounting it at /api
+// ahead of the public router makes it answer 401 for /api/complain — a
+// request it does not even have a route for. The public form breaks and the
+// only symptom is an unexplained 401 from a page with no login on it.
 app.use('/', publicRouter);
+app.use('/api', streamRouter);
+app.use('/api', adminRouter);
 
-app.use((req, res) => {
-  res.status(404).render('error', { message: 'No such page. Complain about it if you like.' });
-});
+/* ── the built client ────────────────────────────────────────────────────
+   Hashed asset filenames are immutable, so they cache hard; index.html must
+   not, or a redeploy leaves browsers pointing at assets that no longer
+   exist. */
+
+const hasClient = fs.existsSync(path.join(clientDir, 'index.html'));
+
+if (hasClient) {
+  app.use(
+    express.static(clientDir, {
+      index: false,
+      setHeaders(res, filePath) {
+        res.setHeader(
+          'cache-control',
+          filePath.includes(`${path.sep}assets${path.sep}`)
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        );
+      },
+    }),
+  );
+
+  // Client-side routing: anything not matched above is the SPA.
+  app.get(/^\/(?!api\/).*/, (req, res, next) => {
+    if (req.method !== 'GET') return next();
+    res.sendFile(path.join(clientDir, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res
+      .status(503)
+      .type('text/plain')
+      .send('The client has not been built. Run: npm run build\n');
+  });
+}
+
+app.use((req, res) => res.status(404).json({ error: 'not found' }));
 
 // eslint-disable-next-line no-unused-vars -- Express identifies error handlers by arity.
 app.use((err, req, res, next) => {
   console.error('[server]', err);
-  res.status(500).render('error', {
-    message: config.isProd ? 'Something went wrong.' : String(err.stack || err.message),
-  });
+  res.status(500).json({ error: config.isProd ? 'Something went wrong.' : String(err.message) });
 });
 
 const stops = [];
@@ -58,6 +93,13 @@ async function main() {
 
   const server = app.listen(config.port, () => {
     const base = `http://localhost:${config.port}`;
+    let dbHost = 'unknown';
+    try {
+      dbHost = new URL(config.db.url).host;
+    } catch {
+      /* startup validation already rejected an unusable URL */
+    }
+
     console.log('');
     console.log('  The Complaints Department is open.');
     console.log('');
@@ -66,13 +108,8 @@ async function main() {
     console.log(`    dashboard  ${base}/admin`);
     console.log(`    wall       ${base}/admin/wall`);
     console.log('');
-    let dbHost = 'unknown';
-    try {
-      dbHost = new URL(config.db.url).host;
-    } catch {
-      /* startup validation already rejected an unusable URL */
-    }
     console.log(`    database: ${dbHost}`);
+    if (!hasClient) console.log('    client:   NOT BUILT — run npm run build');
     console.log('');
   });
 

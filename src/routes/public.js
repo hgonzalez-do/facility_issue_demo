@@ -29,52 +29,35 @@ function rateLimited(ip) {
   return recent.length > max;
 }
 
-publicRouter.get('/', (req, res) => {
-  res.render('form', { error: null, body: '' });
-});
-
-publicRouter.post('/complain', async (req, res) => {
+publicRouter.post('/api/complain', async (req, res) => {
   const body = String(req.body?.body ?? '').trim();
 
   if (!body) {
-    return res.status(400).render('form', {
-      error: 'The form requires a complaint. That is the whole form.',
-      body: '',
-    });
+    return res.status(400).json({ error: 'The form requires a complaint. That is the whole form.' });
   }
-
   if (body.length > MAX_LENGTH) {
-    return res.status(400).render('form', {
+    return res.status(400).json({
       error: `One sentence, please. That was ${body.length} characters; the limit is ${MAX_LENGTH}.`,
-      body: body.slice(0, MAX_LENGTH),
     });
   }
-
   if (rateLimited(req.ip)) {
-    return res.status(429).render('form', {
+    return res.status(429).json({
       error: 'Your grievances are being processed. Please allow the queue to drain.',
-      body: '',
     });
   }
 
   try {
     const complaint = await submitComplaint({ body, source: 'web' });
-    return res.redirect(`/thanks?id=${complaint.id}`);
+    return res.status(201).json({ id: complaint.id });
   } catch (err) {
     console.error('[public] submit failed:', err.message);
-    return res.status(500).render('form', {
+    return res.status(500).json({
       error: 'Intake is temporarily unavailable. Your dissatisfaction has been noted informally.',
-      body,
     });
   }
 });
 
-publicRouter.get('/thanks', (req, res) => {
-  const id = Number.parseInt(String(req.query.id ?? ''), 10);
-  res.render('thanks', { id: Number.isFinite(id) ? id : null });
-});
-
-/** QR code pointing at the public form — project this on the screen. */
+/** QR code pointing at the public form — projected by the /qr page. */
 publicRouter.get('/qr.svg', async (req, res) => {
   const target = String(req.query.url || `${req.protocol}://${req.get('host')}/`);
   try {
@@ -82,18 +65,12 @@ publicRouter.get('/qr.svg', async (req, res) => {
       type: 'svg',
       errorCorrectionLevel: 'M',
       margin: 1,
-      color: { dark: '#0b1220', light: '#ffffff' },
+      color: { dark: '#0f172a', light: '#ffffff' },
     });
     res.type('image/svg+xml').set('cache-control', 'public, max-age=300').send(svg);
   } catch (err) {
     res.status(500).type('text/plain').send(`could not render QR: ${err.message}`);
   }
-});
-
-/** Full-screen QR for the projector. */
-publicRouter.get('/qr', (req, res) => {
-  const target = `${req.protocol}://${req.get('host')}/`;
-  res.render('qr', { target });
 });
 
 publicRouter.get('/healthz', (req, res) => {
