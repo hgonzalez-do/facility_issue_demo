@@ -37,8 +37,15 @@ doctl harness-runtime triggers list-executions <id> --output json \
 
 The practical consequence: if you need *N* concurrent runs of the same
 agent, create *N* triggers from one manifest and round-robin across them.
-Do not expect a single trigger to fan out, and do not promise an audience
-parallelism you have not measured.
+Do not expect a single trigger to fan out. That is what this demo does —
+`INTAKE_SHARDS` triggers, verified at 8 concurrent, with eight complaints
+submitted in the same two seconds all finishing inside 89 seconds.
+
+One trap when you plumb the shard list through an App Platform spec: JSON
+like `[{"url": ...}]` is also valid YAML flow-sequence syntax, so inlining it
+bare gets parsed as an array and the update fails with `cannot unmarshal
+array into Go struct field ... of type string`. Base64 it, the way the
+cluster CA already is.
 
 **A session's log outlives the session.** `doctl harness-runtime logs
 <session>` 404s within minutes of a trigger run finishing, but the

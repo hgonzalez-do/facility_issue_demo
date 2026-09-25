@@ -87,6 +87,13 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${MARS_WEBHOOK_SECRET}
+      # Every intake trigger as JSON, round-robined by src/lib/mars.js. A
+      # Harness Runtime trigger runs one session at a time, so the length of
+      # this list is how many complaints can be processed at once.
+      - key: MARS_WEBHOOK_SHARDS
+        scope: RUN_TIME
+        type: SECRET
+        value: ${MARS_WEBHOOK_SHARDS_B64}
       # Fires the reset agent from the dashboard's Reset button. Optional:
       # without it the button still wipes the database.
       - key: RESET_WEBHOOK_URL

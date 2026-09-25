@@ -248,67 +248,113 @@ fi
 
 COMPLAINT_SPEC="agents/complaint-agent.yaml"
 
-WEBHOOK_TRIGGER="${STACK_NAME}-intake"
-MARS_WEBHOOK_URL="$(state_get webhook_url)"
-MARS_WEBHOOK_SECRET="$(state_get webhook_secret)"
+# A Harness Runtime trigger runs exactly one session at a time. That is a
+# platform behaviour with no knob on the trigger, and it is per *trigger*
+# rather than per team — verified by firing eight throwaway triggers at once
+# and watching all eight reach `running`. So the number of intake triggers is
+# the number of complaints that can be processed at once, and the nth person
+# in a queue of one trigger waits about n minutes.
+#
+# Triggers cost nothing to create; only running sessions cost. Eight clears
+# eight complaints a minute, which covers a busy room.
+INTAKE_SHARDS="${INTAKE_SHARDS:-8}"
+case "$INTAKE_SHARDS" in ''|*[!0-9]*) die "INTAKE_SHARDS must be a whole number (got '$INTAKE_SHARDS')" ;; esac
+[ "$INTAKE_SHARDS" -ge 1 ] || die "INTAKE_SHARDS must be at least 1"
 
-existing="$(doctl harness-runtime triggers list --output json 2>/dev/null \
-  | jq -r --arg n "$WEBHOOK_TRIGGER" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
+doctl harness-runtime validate "$COMPLAINT_SPEC" >/dev/null \
+  || die "agents/complaint-agent.yaml failed validation."
 
-if [ -n "$existing" ] && [ -n "$MARS_WEBHOOK_URL" ] && [ -n "$MARS_WEBHOOK_SECRET" ]; then
-  # Push the current prompt and manifest to the existing trigger rather than
-  # leaving it alone. Both are copied into the trigger at create time, so
-  # without this an edit to agents/complaint-prompt.txt would sit in the repo
-  # doing nothing while the old wording kept running — a silent no-op that is
-  # very hard to spot from the outside. Updating in place keeps the webhook
-  # URL and its secret, which recreating would not.
-  doctl harness-runtime validate "$COMPLAINT_SPEC" >/dev/null \
-    || die "agents/complaint-agent.yaml failed validation."
+trigger_list="$(doctl harness-runtime triggers list --output json 2>/dev/null)"
+shards_json="[]"
+made=0; updated=0
 
-  update_out="$(doctl harness-runtime triggers update "$existing" \
-    --prompt "$(cat agents/complaint-prompt.txt)" \
-    --spec "$COMPLAINT_SPEC" \
-    --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
-    --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
-    2>&1)" \
-    && ok "trigger $WEBHOOK_TRIGGER updated with the current prompt and manifest" \
-    || warn "trigger $WEBHOOK_TRIGGER could not be updated, so it is STILL RUNNING ITS PREVIOUS PROMPT:
-    $(printf '%s' "$update_out" | tail -3 | tr '\n' ' ')"
-  state_set webhook_trigger_id "$existing"
-else
-  if [ -n "$existing" ]; then
-    # The secret is shown once at creation. Without it in state we cannot sign
-    # deliveries, so replace the trigger rather than ship a broken webhook.
-    warn "trigger exists but its secret is not in local state — recreating"
-    doctl harness-runtime triggers delete "$existing" --force >/dev/null 2>&1 || true
+for i in $(seq 1 "$INTAKE_SHARDS"); do
+  # Shard 1 keeps the original unsuffixed name. Renaming it would mean
+  # deleting and recreating, and a trigger's secret is shown exactly once —
+  # so an existing stack would need its webhook re-signed for no reason.
+  if [ "$i" = 1 ]; then
+    shard_name="${STACK_NAME}-intake"
+    url_key="webhook_url"; sec_key="webhook_secret"; id_key="webhook_trigger_id"
+  else
+    shard_name="${STACK_NAME}-intake-${i}"
+    url_key="webhook_url_${i}"; sec_key="webhook_secret_${i}"; id_key="webhook_trigger_id_${i}"
   fi
 
-  doctl harness-runtime validate "$COMPLAINT_SPEC" >/dev/null \
-    || die "agents/complaint-agent.yaml failed validation."
+  shard_id="$(echo "$trigger_list" | jq -r --arg n "$shard_name" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
+  shard_url="$(state_get "$url_key")"
+  shard_secret="$(state_get "$sec_key")"
 
-  info "creating $WEBHOOK_TRIGGER"
-  created="$(doctl harness-runtime triggers create \
-    --kind webhook --provider custom \
-    --name "$WEBHOOK_TRIGGER" \
-    --session-mode fresh \
-    --spec "$COMPLAINT_SPEC" \
-    --prompt "$(cat agents/complaint-prompt.txt)" \
-    --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
-    --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
-    --output json 2>&1)" || die "trigger creation failed:\n$created"
+  if [ -n "$shard_id" ] && [ -n "$shard_url" ] && [ -n "$shard_secret" ]; then
+    # Push the current prompt and manifest rather than leaving them alone.
+    # Both are copied into the trigger at create time, so without this an
+    # edit to agents/complaint-prompt.txt would sit in the repo doing nothing
+    # while the old wording kept running — a silent no-op, and a nasty one.
+    # Updating in place keeps the webhook URL and its secret.
+    update_out="$(doctl harness-runtime triggers update "$shard_id" \
+      --prompt "$(cat agents/complaint-prompt.txt)" \
+      --spec "$COMPLAINT_SPEC" \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
+      2>&1)" \
+      && updated=$((updated + 1)) \
+      || warn "$shard_name could not be updated, so it is STILL RUNNING ITS PREVIOUS PROMPT:
+    $(printf '%s' "$update_out" | tail -3 | tr '\n' ' ')"
+  else
+    if [ -n "$shard_id" ]; then
+      # The secret is shown once at creation. Without it in state we cannot
+      # sign deliveries, so replace the trigger rather than ship a broken one.
+      warn "$shard_name exists but its secret is not in local state — recreating"
+      doctl harness-runtime triggers delete "$shard_id" --force >/dev/null 2>&1 || true
+    fi
 
-  MARS_WEBHOOK_URL="$(echo "$created" | first_of '(.webhook.webhook_url // .webhook_url)')"
-  MARS_WEBHOOK_SECRET="$(echo "$created" | first_of '(.webhook_secret // .webhook.secret // .secret)')"
-  trigger_id="$(echo "$created" | first_of '(.trigger_id // .id)')"
+    created="$(doctl harness-runtime triggers create \
+      --kind webhook --provider custom \
+      --name "$shard_name" \
+      --session-mode fresh \
+      --spec "$COMPLAINT_SPEC" \
+      --prompt "$(cat agents/complaint-prompt.txt)" \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
+      --output json 2>&1)" || die "trigger $shard_name creation failed:\n$created"
 
-  [ -n "$MARS_WEBHOOK_URL" ]    || die "no webhook_url in trigger response:\n$created"
-  [ -n "$MARS_WEBHOOK_SECRET" ] || die "no one-time secret in trigger response:\n$created"
+    shard_url="$(echo "$created" | first_of '(.webhook.webhook_url // .webhook_url)')"
+    shard_secret="$(echo "$created" | first_of '(.webhook_secret // .webhook.secret // .secret)')"
+    shard_id="$(echo "$created" | first_of '(.trigger_id // .id)')"
 
-  state_set webhook_trigger_id "$trigger_id"
-  state_set webhook_url "$MARS_WEBHOOK_URL"
-  state_set webhook_secret "$MARS_WEBHOOK_SECRET"
-  ok "created — secret saved to .deploy-state.json (shown once, gitignored)"
-fi
+    [ -n "$shard_url" ]    || die "no webhook_url in $shard_name response:\n$created"
+    [ -n "$shard_secret" ] || die "no one-time secret in $shard_name response:\n$created"
+    made=$((made + 1))
+  fi
+
+  state_set "$id_key"  "$shard_id"
+  state_set "$url_key" "$shard_url"
+  state_set "$sec_key" "$shard_secret"
+
+  shards_json="$(echo "$shards_json" | jq -c --arg u "$shard_url" --arg s "$shard_secret" '. + [{url: $u, secret: $s}]')"
+done
+
+# Drop shards left over from a larger INTAKE_SHARDS. Without this, lowering
+# the number would leave triggers running that nothing ever fires at — and
+# destroy.sh would not know about them either.
+for stale in $(echo "$trigger_list" | jq -r --arg p "${STACK_NAME}-intake-" '.[]? | select(.name | startswith($p)) | .name'); do
+  idx="${stale##*-}"
+  case "$idx" in ''|*[!0-9]*) continue ;; esac
+  if [ "$idx" -gt "$INTAKE_SHARDS" ]; then
+    stale_id="$(echo "$trigger_list" | jq -r --arg n "$stale" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
+    doctl harness-runtime triggers delete "$stale_id" --force >/dev/null 2>&1 \
+      && info "removed extra shard $stale"
+    state_set "webhook_url_${idx}" ""
+    state_set "webhook_secret_${idx}" ""
+    state_set "webhook_trigger_id_${idx}" ""
+  fi
+done
+
+MARS_WEBHOOK_SHARDS="$shards_json"
+MARS_WEBHOOK_URL="$(state_get webhook_url)"
+MARS_WEBHOOK_SECRET="$(state_get webhook_secret)"
+state_set intake_shards "$shards_json"
+
+ok "$INTAKE_SHARDS intake trigger(s): $made created, $updated updated — $INTAKE_SHARDS complaints can run at once"
 
 # ── 3b. reset trigger ────────────────────────────────────────────────────────
 
@@ -466,11 +512,19 @@ export GITHUB_REPO GITHUB_BRANCH
 export MARS_WEBHOOK_URL MARS_WEBHOOK_SECRET
 export RESET_WEBHOOK_URL="${RESET_WEBHOOK_URL:-}" RESET_WEBHOOK_SECRET="${RESET_WEBHOOK_SECRET:-}"
 export CLOSE_WEBHOOK_URL="${CLOSE_WEBHOOK_URL:-}" CLOSE_WEBHOOK_SECRET="${CLOSE_WEBHOOK_SECRET:-}"
+export MARS_WEBHOOK_SHARDS="${MARS_WEBHOOK_SHARDS:-}"
 export ADMIN_PASSWORD SESSION_SECRET
 
 # Base64 so a multi-line PEM survives the YAML round trip intact.
 DB_CA_CERT_B64="$(printf '%s' "$DB_CA_CERT" | base64 | tr -d '\n')"
 export DB_CA_CERT_B64
+
+# Base64 for a different reason: the shard list is JSON, and `[{"url": ...}]`
+# is also valid YAML *flow sequence* syntax. Inlined bare, App Platform parses
+# it as an array and rejects the spec with "cannot unmarshal array into Go
+# struct field ... of type string". src/config.js accepts either form.
+MARS_WEBHOOK_SHARDS_B64="$(printf '%s' "$MARS_WEBHOOK_SHARDS" | base64 | tr -d '\n')"
+export MARS_WEBHOOK_SHARDS_B64
 
 # render-spec substitutes only our own placeholders, so App Platform's
 # ${db.DATABASE_URL} binding survives intact. It fails loudly on a typo.

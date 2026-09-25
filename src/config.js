@@ -16,6 +16,45 @@ function int(v, dflt) {
   return Number.isFinite(n) ? n : dflt;
 }
 
+/**
+ * The intake triggers, as [{ url, secret }].
+ *
+ * A Harness Runtime trigger runs exactly one session at a time — measured,
+ * see docs/PLATFORM-NOTES.md — so the number of triggers *is* the number of
+ * complaints that can be processed at once. deploy.sh creates several and
+ * writes them here as JSON.
+ *
+ * Falls back to the single MARS_WEBHOOK_URL pair, which is what a stack
+ * deployed before sharding has, and what link-local.sh wrote then. Bad JSON
+ * falls back too rather than throwing: an unparseable env var should cost
+ * throughput, not the whole app.
+ */
+function intakeShards() {
+  const single = process.env.MARS_WEBHOOK_URL
+    ? [{ url: process.env.MARS_WEBHOOK_URL, secret: process.env.MARS_WEBHOOK_SECRET || '' }]
+    : [];
+
+  const raw = process.env.MARS_WEBHOOK_SHARDS;
+  if (!raw) return single;
+
+  try {
+    // Accepts raw JSON or base64 JSON, like DB_CA_CERT. The App Platform
+    // spec carries it base64'd because bare `[{...}]` is read as a YAML
+    // array; link-local.sh writes it plain.
+    const text = raw.trimStart().startsWith('[')
+      ? raw
+      : Buffer.from(raw, 'base64').toString('utf8');
+    const parsed = JSON.parse(text);
+    const shards = (Array.isArray(parsed) ? parsed : [])
+      .filter((s) => s && typeof s.url === 'string' && s.url)
+      .map((s) => ({ url: s.url, secret: typeof s.secret === 'string' ? s.secret : '' }));
+    return shards.length ? shards : single;
+  } catch {
+    console.error('[config] MARS_WEBHOOK_SHARDS is not valid JSON — falling back to one trigger');
+    return single;
+  }
+}
+
 export const config = {
   port: int(process.env.PORT, 3000),
   env: process.env.NODE_ENV || 'development',
@@ -41,6 +80,9 @@ export const config = {
   // by the trigger, so there is only one prompt and only one thing to test.
   ingest: {
     webhookUrl: process.env.MARS_WEBHOOK_URL || '',
+    // Every intake trigger, round-robined by fireWebhook. One entry means
+    // one complaint at a time, which is the platform's behaviour per trigger.
+    shards: intakeShards(),
     // Fires the reset agent, which closes open issues in the tracker.
     // Optional: without it the reset button still wipes the database.
     resetWebhookUrl: process.env.RESET_WEBHOOK_URL || '',
@@ -87,9 +129,9 @@ export function validateConfig() {
       'DATABASE_URL is not set. For a local run against the deployed cluster: ./scripts/link-local.sh > .env.local',
     );
   }
-  if (!config.ingest.webhookUrl) {
+  if (!config.ingest.shards.length) {
     problems.push(
-      'MARS_WEBHOOK_URL is not set. For a local run against the deployed trigger: ./scripts/link-local.sh > .env.local',
+      'No intake trigger configured (MARS_WEBHOOK_SHARDS or MARS_WEBHOOK_URL). For a local run against the deployed triggers: ./scripts/link-local.sh > .env.local',
     );
   }
   if (!config.inference.apiKey) {

@@ -44,16 +44,33 @@ export function verifySignature(rawBody, secret, header, toleranceSeconds = 300)
 }
 
 /**
- * Fires one complaint at the Harness Runtime webhook trigger.
+ * Which shard the next complaint goes to.
+ *
+ * Round-robin rather than random: every run costs about the same, so an even
+ * spread is exactly optimal and needs no bookkeeping. It resets on restart,
+ * which is fine — the spread only has to be even across one talk.
+ */
+let nextShard = 0;
+
+/**
+ * Fires one complaint at a Harness Runtime intake trigger.
  *
  * Each delivery starts a fresh session in its own microVM. We do not wait for
  * the ticket — the agent writes it straight to Postgres, and the dashboard's
- * watcher notices the new row. That decoupling is the whole point: 200 people
- * can submit at once and this process stays a web server.
+ * watcher notices the new row. That decoupling is why the form stays instant
+ * however many people submit.
+ *
+ * A trigger runs one session at a time, so throughput is the shard count.
+ * deploy.sh creates several identical triggers and this round-robins across
+ * them; with one shard the behaviour is exactly what it was before.
+ *
+ * On a delivery failure it tries the next shard once. A trigger that has been
+ * deleted or had its secret rotated would otherwise take out every complaint
+ * that happened to land on it.
  */
 export async function fireWebhook({ complaintId, body, table }) {
-  const { webhookUrl, webhookSecret, ticketTable } = config.ingest;
-  if (!webhookUrl) throw new Error('MARS_WEBHOOK_URL is not set');
+  const { shards, ticketTable } = config.ingest;
+  if (!shards.length) throw new Error('no intake trigger configured');
 
   const payload = JSON.stringify({
     complaint_id: complaintId,
@@ -62,16 +79,32 @@ export async function fireWebhook({ complaintId, body, table }) {
     submitted_at: new Date().toISOString(),
   });
 
+  const start = nextShard++ % shards.length;
+  const attempts = shards.length > 1 ? 2 : 1;
+  let lastErr;
+
+  for (let i = 0; i < attempts; i++) {
+    const shard = shards[(start + i) % shards.length];
+    try {
+      return await deliver(shard, payload);
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
+}
+
+async function deliver(shard, payload) {
   const headers = { 'content-type': 'application/json' };
-  if (webhookSecret) {
-    const sig = signPayload(payload, webhookSecret);
+  if (shard.secret) {
+    const sig = signPayload(payload, shard.secret);
     // doctl advertises X-DigitalOcean-Signature; the DO webhook SDK reads
     // do-signature. Send both — they carry the same value.
     headers['X-DigitalOcean-Signature'] = sig;
     headers['do-signature'] = sig;
   }
 
-  const res = await fetch(webhookUrl, {
+  const res = await fetch(shard.url, {
     method: 'POST',
     headers,
     body: payload,

@@ -40,7 +40,7 @@ sequenceDiagram
 
     App->>Trig: signed webhook
     Trig->>VM: start a fresh sandbox
-    Note over Trig,VM: one run at a time — see Throughput
+    Note over Trig,VM: one session per trigger — eight triggers, eight at once
 
     VM->>Inf: classify this grievance
     Inf-->>VM: title, component, severity, owner, SLA, root cause
@@ -66,15 +66,22 @@ nothing on the request path waits for an agent.
 
 ### Throughput
 
-What it does **not** do today is run them all at once. A Harness Runtime
-trigger executes **one session at a time**, so complaints queue and land about
-a minute apart. Measured, not estimated — three submitted in the same second
-finished at +74s, +135s and +192s.
+Eight complaints at a time, because there are eight intake triggers.
 
-The limit is per *trigger*, not per team, so the fix is several intake
-triggers with submissions round-robined across them. That is
-[BACKLOG #21](docs/BACKLOG.md) and it is not built yet. Until it is, plan
-around a queue with a one-minute service time rather than a thundering herd.
+A Harness Runtime trigger runs exactly **one session at a time** — a platform
+behaviour with no setting on the trigger to change it. But the limit is per
+trigger rather than per team, so `deploy.sh` creates a pool of identical
+intake triggers and the app round-robins across them. Concurrency is just the
+pool size.
+
+Measured on the deployed stack: **eight complaints submitted within two
+seconds all finished within 89 seconds.** Through a single trigger the last
+of them would have landed around the eight-minute mark.
+
+`INTAKE_SHARDS` in `.env` sets the pool size, default 8. Triggers cost
+nothing to create and only running sessions are billed, so raise it for a
+bigger room — verified working at 8, and lowering it removes the extras on
+the next deploy.
 
 ---
 

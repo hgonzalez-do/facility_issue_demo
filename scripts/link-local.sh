@@ -39,6 +39,10 @@ DB_CA_CERT=${ca}
 
 # Submissions fire the real webhook trigger, so real microVMs write the rows
 # and this process only ever reads them back.
+# Every intake trigger, round-robined. A trigger runs one session at a time,
+# so this list is how many complaints can be processed at once. The single
+# pair below stays for the fallback path in src/config.js.
+MARS_WEBHOOK_SHARDS=$(jq -r '.intake_shards // empty' .deploy-state.json)
 MARS_WEBHOOK_URL=$(jq -r .webhook_url .deploy-state.json)
 MARS_WEBHOOK_SECRET=$(jq -r .webhook_secret .deploy-state.json)
 MARS_TICKET_TABLE=tickets

@@ -46,24 +46,23 @@ db_id="$(state_get db_cluster_id)"
 [ -n "$db_id" ] || db_id="$(doctl databases list --format ID,Name --no-header 2>/dev/null \
   | awk -v n="$DB_CLUSTER_NAME" '$2==n {print $1}' | head -1)"
 
-webhook_id="$(state_get webhook_trigger_id)"
-cron_id="$(state_get cron_trigger_id)"
-for pair in "webhook_id:${STACK_NAME}-intake" "cron_id:${STACK_NAME}-summary"; do
-  var="${pair%%:*}"; name="${pair#*:}"
-  if [ -z "${!var}" ]; then
-    found="$(doctl harness-runtime triggers list --output json 2>/dev/null \
-      | jq -r --arg n "$name" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
-    printf -v "$var" '%s' "$found"
-  fi
-done
+# Every trigger this stack owns: the intake shards, reset, close and summary.
+# Matched by name prefix rather than by a list of state keys — an earlier
+# version named two keys explicitly and quietly left the reset trigger
+# running, which is exactly the kind of leftover a teardown script exists to
+# prevent.
+trigger_rows="$(doctl harness-runtime triggers list --output json 2>/dev/null \
+  | jq -r --arg p "${STACK_NAME}-" '.[]? | select(.name | startswith($p)) | "\(.trigger_id // .id) \(.name)"' \
+  | sort -k2 || true)"
 
 printf "\n%sThis will permanently delete:%s\n\n" "$BOLD$RED" "$RESET"
-[ -n "$webhook_id" ] && info "webhook trigger  ${STACK_NAME}-intake   ($webhook_id)"
-[ -n "$cron_id" ]    && info "cron trigger     ${STACK_NAME}-summary  ($cron_id)"
+[ -n "$trigger_rows" ] && while read -r t_id t_name; do
+  [ -n "$t_id" ] && info "trigger          ${t_name}  ($t_id)"
+done <<< "$trigger_rows"
 [ -n "$app_id" ]     && info "app              ${STACK_NAME}          ($app_id)"
 [ -n "$db_id" ]      && info "database         ${DB_CLUSTER_NAME}     ($db_id)  ${RED}and every ticket in it${RESET}"
 
-if [ -z "$webhook_id$cron_id$app_id$db_id" ]; then
+if [ -z "$trigger_rows$app_id$db_id" ]; then
   printf "\n  Nothing found for stack '%s'. Nothing to do.\n\n" "$STACK_NAME"
   exit 0
 fi
@@ -75,8 +74,11 @@ if [ "${1:-}" != "--yes" ] && [ "${1:-}" != "-y" ]; then
 fi
 
 printf "\n"
-[ -n "$webhook_id" ] && { doctl harness-runtime triggers delete "$webhook_id" --force >/dev/null 2>&1 && ok "deleted webhook trigger" || info "webhook trigger already gone"; }
-[ -n "$cron_id" ]    && { doctl harness-runtime triggers delete "$cron_id" --force >/dev/null 2>&1 && ok "deleted cron trigger" || info "cron trigger already gone"; }
+[ -n "$trigger_rows" ] && while read -r t_id t_name; do
+  [ -n "$t_id" ] || continue
+  doctl harness-runtime triggers delete "$t_id" --force >/dev/null 2>&1 \
+    && ok "deleted trigger $t_name" || info "trigger $t_name already gone"
+done <<< "$trigger_rows"
 [ -n "$app_id" ]     && { doctl apps delete "$app_id" --force >/dev/null 2>&1 && ok "deleted app" || info "app already gone"; }
 [ -n "$db_id" ]      && { doctl databases delete "$db_id" --force >/dev/null 2>&1 && ok "deleted database" || info "database already gone"; }
 

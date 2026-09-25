@@ -28,14 +28,23 @@ set -a; . ./.env; set +a
 [ -n "${DIGITALOCEAN_ACCESS_TOKEN:-}" ] || { echo "DIGITALOCEAN_ACCESS_TOKEN not set" >&2; exit 2; }
 export DIGITALOCEAN_ACCESS_TOKEN
 
-trigger="$(jq -r '.webhook_trigger_id // empty' .deploy-state.json 2>/dev/null || true)"
-[ -n "$trigger" ] || { echo "no webhook trigger in .deploy-state.json — deploy first" >&2; exit 2; }
+# Every intake shard, not just the first. Complaints are round-robined, so
+# the most recent GitHub attempt can be on any of them and shard 1 may have
+# been idle for a while.
+triggers="$(jq -r 'to_entries[] | select(.key | test("^webhook_trigger_id(_[0-9]+)?$")) | .value | select(. != "")' \
+  .deploy-state.json 2>/dev/null || true)"
+[ -n "$triggers" ] || { echo "no webhook trigger in .deploy-state.json — deploy first" >&2; exit 2; }
 
-ids="$(doctl harness-runtime triggers list-executions "$trigger" --output json 2>/dev/null \
-  | jq -r '.[0:5][]?.execution_id' || true)"
-[ -n "$ids" ] || { echo "no trigger runs yet — submit a complaint, then re-run this" >&2; exit 2; }
+# Pair each execution with the trigger it belongs to, newest first, so
+# get-execution below is asked about the right one.
+pairs="$(for t in $triggers; do
+  doctl harness-runtime triggers list-executions "$t" --output json 2>/dev/null \
+    | jq -r --arg t "$t" '.[]? | "\(.created_at) \($t) \(.execution_id)"' || true
+done | sort -r | head -5)"
+[ -n "$pairs" ] || { echo "no trigger runs yet — submit a complaint, then re-run this" >&2; exit 2; }
 
-for id in $ids; do
+while read -r _ trigger id; do
+  [ -n "$id" ] || continue
   out="$(doctl harness-runtime triggers get-execution "$trigger" "$id" --output json 2>/dev/null \
     | jq -r 'if type=="array" then .[0] else . end | .output_text // ""')"
 
@@ -50,7 +59,7 @@ for id in $ids; do
     echo "working — the last run filed an issue"
     exit 0
   fi
-done
+done <<< "$pairs"
 
 echo "unknown — no recent run attempted the GitHub step"
 exit 2

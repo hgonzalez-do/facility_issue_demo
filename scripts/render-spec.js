@@ -27,6 +27,7 @@ const KEYS = [
   'GITHUB_BRANCH',
   'MARS_WEBHOOK_URL',
   'MARS_WEBHOOK_SECRET',
+  'MARS_WEBHOOK_SHARDS_B64',
   'RESET_WEBHOOK_URL',
   'RESET_WEBHOOK_SECRET',
   'CLOSE_WEBHOOK_URL',
@@ -45,6 +46,7 @@ const KEYS = [
 // README promises the demo still runs without it. Requiring them would turn
 // "no tracker" into "no deploy".
 const OPTIONAL = new Set([
+  'MARS_WEBHOOK_SHARDS_B64',
   'RESET_WEBHOOK_URL',
   'RESET_WEBHOOK_SECRET',
   'CLOSE_WEBHOOK_URL',
