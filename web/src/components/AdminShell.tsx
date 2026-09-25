@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { LiveDot } from '@/components/LiveDot';
+import { ResetButton } from '@/components/ResetButton';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -52,6 +53,7 @@ export function AdminShell({ live, children }: { live: boolean; children: React.
         </div>
 
         <LiveDot live={live} />
+        <ResetButton />
         <Button
           variant="outline"
           size="sm"
