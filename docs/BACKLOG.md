@@ -39,6 +39,36 @@ session still timed out on 25060 in a trigger-started one. Worth retesting.
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 
+**19. The docs have fallen behind the code.** Audited rather than guessed —
+every item below is a confirmed gap as of this writing, and most of it is
+one day's work landing faster than the prose describing it.
+
+README:
+
+- the Reset button is not mentioned at all
+- the deploy diagram shows four things `deploy.sh` creates; it now creates
+  five. The reset trigger is missing from it.
+
+docs/ARCHITECTURE.md:
+
+- the reset trigger is absent entirely — the only occurrence of "reset" is
+  `reset.js` in the file listing
+- `agents/summary-voice.txt` is not in the layout, so nothing explains why
+  the summary's instructions live outside both places that use them
+- the `scripts/` listing predates `clear-issues.sh` and `check-github.sh`
+- the complaint flow diagram does not show `preload_tools`, so it still
+  implies a discovery step that no longer happens
+
+docs/PLATFORM-NOTES.md now covers the actor split, the unreliable `status`
+field and `preload_tools`. Still missing: the reset trigger, and the fact
+that `DELETE` is the only way to re-authorize a connection the API believes
+is healthy.
+
+The rule this keeps violating: a document that is confidently wrong is worse
+than one that is missing, because it is trusted. Worth a pass that checks
+claims against the code rather than reading for plausibility — the last such
+pass found four flatly false statements in ARCHITECTURE alone.
+
 **20. Consider replacing doctl with a client library.** `deploy.sh` and the
 helper scripts shell out to `doctl` about twenty times, seventeen of which
 are `harness-runtime triggers`. Parsing a CLI has cost real time on this
@@ -88,23 +118,10 @@ shell work — waiting, retrying, prompting — it may be fine where it is.
 
 ## Loose ends
 
-**12. A stale `hgonzalez` Action Gateway connection** reports `active` and is
-not usable — a probe as that actor gets "requires an OAuth connection".
-Trigger sessions run as the account UUID and never touch it, so it does
-nothing except read healthy while being broken. Delete it:
-`DELETE /v2/action-gateway/connections/{id}`.
-
-**16. Connection status is unreliable in both directions.** The record read
-`active` for two days while every call failed, and read `pending` while
-calls succeeded. Never branch on it; `scripts/check-github.sh` reads trigger
-run history instead.
-
 **17. Runs take 60–125s end to end.** *(Deferred — revisit after the talk.)* Most of it is the agent installing a
 Postgres client per run, since the sandbox image ships none. A custom
 sandbox template with `psycopg` baked in would cut it, and would let egress
 drop PyPI (see #7).
-
-**13. Five test issues** from 23 September remain in the tracker.
 
 **14. The `.envrc` token** has been sitting in cleartext since the start and
 is now the live credential for this stack. Rotate it.

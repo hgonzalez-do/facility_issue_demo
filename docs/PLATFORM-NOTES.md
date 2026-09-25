@@ -18,6 +18,71 @@ a DigitalOcean maintenance page that reads exactly like an outage.
 **`HARNESS_INFERENCE_BASE_URL` is not read by `opencode`.** Set it anyway — it
 is the documented platform key — but `ANTHROPIC_BASE_URL` is what takes effect.
 
+## Action Gateway
+
+**A trigger-started session and a session you create run as different
+actors.** `doctl harness-runtime create` runs as your DigitalOcean
+*username*; a session started by a trigger runs as your account *UUID*.
+Action Gateway resolves a connection by actor, so the two see different
+connections — a GitHub connection authorized against one is invisible to the
+other, and the only symptom is that the tool reports "requires an OAuth
+connection" while the connection you are looking at says `active`.
+
+This is the most expensive thing in this document. It means a probe session
+cannot validate the credential the demo actually uses, that
+`scripts/connect-github.sh` has to target the UUID specifically, and that
+anything the app needs an agent to do with a third-party credential has to
+go through a trigger rather than a session the app creates. The reset button
+is a webhook trigger for exactly this reason.
+
+Check which is which:
+
+```bash
+curl -s -H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN" \
+  https://api.digitalocean.com/v2/action-gateway/sessions | \
+  jq -r '.sessions[] | "\(.actorId)  \(.name)"'
+```
+
+Sessions named `ht-exec-*` are trigger-started.
+
+**A connection's `status` field is wrong in both directions.** It read
+`active` for two days while every tool call failed, and read `pending`
+through a run that succeeded. It is not a lie you can correct for by
+inverting it — the record and the OAuth token behind it simply expire
+independently.
+
+Nothing should branch on it. `scripts/check-github.sh` reads the webhook
+trigger's own execution history instead, because that is evidence from the
+actor that actually runs the demo. A probe session that calls a tool is
+worse than the status field, not better: it looks rigorous and tests the
+wrong actor.
+
+When the token has expired but the record says `active`, the API refuses to
+mint a new authorization link. `DELETE /v2/action-gateway/connections/{id}`
+returns the record to `revoked`, after which a `POST` will issue one.
+
+**`preload_tools` removes the discovery step.** Listing tools under
+`do.actions` restricts what a session may call; `preload_tools` additionally
+hands the model their input schemas, so it calls them directly instead of
+running `action_search` first. One fewer round-trip and one fewer failure
+mode per run:
+
+```yaml
+tools:
+  - do.actions:
+      tools: [github_create_issue, github_add_issue_labels]
+      preload_tools: [github_create_issue, github_add_issue_labels]
+```
+
+Tool names in `preload_tools` must be individual tools — Harness Runtime
+YAML does not accept toolbelt references there. Use the slug
+(`github_create_issue`), not the bare name: `create_issue` also exists in
+the Jira and Linear toolkits.
+
+**Permission rules name gateway tools as `do.actions/<tool>`**, and
+`enforcement` defaults to `strict` for deny rules — a rule naming a tool the
+adapter does not declare fails session creation rather than being ignored.
+
 ## The sandbox
 
 **`action_code` runs in a different sandbox from the agent** and receives none
