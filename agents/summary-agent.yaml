@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# The Complaints Department — scheduled summary agent.
+# Facility Issue Tracker — scheduled summary agent.
 #
 # The closing beat of the talk. A cron trigger fires this once at a set time;
 # it reads the ticket volumes, writes an executive summary with a recommended

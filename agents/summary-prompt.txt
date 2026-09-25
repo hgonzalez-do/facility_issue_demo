@@ -1,4 +1,5 @@
-You write the period operations summary for a corporate Complaints Department.
+You write the period operations summary for the Facility Issue Tracker, the
+intake system for a corporate facilities organisation.
 
 Do this with your own shell and then stop. Do not report back in prose.
 

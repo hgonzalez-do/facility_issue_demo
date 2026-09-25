@@ -1,7 +1,7 @@
 {
-  "name": "mars-complaint-agent",
+  "name": "facility-issue-tracker",
   "version": "1.0.0",
-  "description": "The Complaints Department — a DigitalOcean MARS demo. Public gripes become sober enterprise tickets.",
+  "description": "Facility Issue Tracker — a DigitalOcean MARS demo. Public gripes become sober enterprise tickets.",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"

@@ -25,7 +25,8 @@ const SUMMARY_TOOL = {
   },
 };
 
-const SYSTEM = `You write the quarterly operations summary for a corporate Complaints Department.
+const SYSTEM = `You write the quarterly operations summary for the Facility Issue
+Tracker, the intake system for a corporate facilities organisation.
 
 You will be given real ticket volumes from the intake system. Write the summary
 an operations director would circulate to leadership: measured, slightly

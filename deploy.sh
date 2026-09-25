@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# The Complaints Department — one-command deploy.
+# Facility Issue Tracker — one-command deploy.
 #
 #   cp .env.example .env    # fill in the marked values
 #   ./deploy.sh
@@ -409,7 +409,7 @@ fi
 
 # ── done ─────────────────────────────────────────────────────────────────────
 
-printf "\n%s%s  The Complaints Department is open.%s\n\n" "$BOLD" "$GREEN" "$RESET"
+printf "\n%s%s  The Facility Issue Tracker is open.%s\n\n" "$BOLD" "$GREEN" "$RESET"
 printf "    form       %s/\n"             "$APP_URL"
 printf "    QR (proj)  %s/qr\n"           "$APP_URL"
 printf "    dashboard  %s/admin\n"        "$APP_URL"

@@ -1,4 +1,4 @@
--- The Complaints Department — schema for DigitalOcean Managed Postgres.
+-- Facility Issue Tracker — schema for DigitalOcean Managed Postgres.
 --
 -- The only schema there is. Local runs point at the deployed cluster via
 -- scripts/link-local.sh, so there is no second dialect to keep in step.

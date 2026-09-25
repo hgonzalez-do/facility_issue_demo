@@ -29,7 +29,7 @@ export default function Wall() {
     <main className="dark bg-background text-foreground min-h-dvh px-6 py-5">
       <header className="mb-5 flex flex-wrap items-baseline gap-5">
         <h1 className="text-[clamp(21px,2.5vw,31px)] font-semibold tracking-tighter">
-          The Complaints Department
+          Facility Issue Tracker
         </h1>
         <LiveDot live={live} />
 

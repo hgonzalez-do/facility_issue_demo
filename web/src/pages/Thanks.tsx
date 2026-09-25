@@ -26,7 +26,7 @@ export default function Thanks() {
 
         {Number.isFinite(id) && (
           <p className="border-border text-muted-foreground mt-5 border-t pt-5 font-mono text-[13px]">
-            Reference CD-{String(id).padStart(6, '0')}
+            Reference FIT-{String(id).padStart(6, '0')}
           </p>
         )}
 

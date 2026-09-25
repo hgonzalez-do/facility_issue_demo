@@ -101,7 +101,7 @@ async function main() {
     }
 
     console.log('');
-    console.log('  The Complaints Department is open.');
+    console.log('  The Facility Issue Tracker is open.');
     console.log('');
     console.log(`    form       ${base}/`);
     console.log(`    QR (proj)  ${base}/qr`);

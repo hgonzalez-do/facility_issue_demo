@@ -19,7 +19,7 @@ export function AdminShell({ live, children }: { live: boolean; children: React.
     <div className="dark bg-background text-foreground min-h-dvh">
       <nav className="border-border bg-card/80 sticky top-0 z-10 flex h-14 items-center gap-5 border-b px-6 backdrop-blur">
         <NavLink to="/admin" className="text-sm font-semibold tracking-tight whitespace-nowrap">
-          The Complaints Department
+          Facility Issue Tracker
           <span className="text-muted-foreground font-normal"> / Operations</span>
         </NavLink>
 

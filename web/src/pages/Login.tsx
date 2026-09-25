@@ -31,7 +31,7 @@ export default function Login() {
         <form onSubmit={submit}>
           <h1 className="text-lg font-semibold tracking-tight">Operations</h1>
           <p className="text-muted-foreground mt-0.5 mb-6 text-[13.5px]">
-            The Complaints Department
+            Facility Issue Tracker
           </p>
 
           {error && (

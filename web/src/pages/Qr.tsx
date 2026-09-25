@@ -5,7 +5,7 @@ export default function Qr() {
     <main className="grid min-h-dvh place-items-center bg-white p-10 text-center">
       <div>
         <h1 className="text-[clamp(30px,5vw,56px)] font-semibold tracking-tighter text-slate-900">
-          The Complaints Department
+          Facility Issue Tracker
         </h1>
         <p className="mt-2 text-[clamp(16px,2vw,22px)] text-slate-600">
           Complain about anything. One sentence.

@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# The Complaints Department — webhook agent.
+# Facility Issue Tracker — webhook agent.
 #
 # One fired webhook = one session in its own microVM = one ticket. The session
 # classifies a single grievance and writes the row to Managed Postgres itself,

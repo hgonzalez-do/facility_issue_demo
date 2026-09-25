@@ -1,4 +1,4 @@
-# App Platform spec for The Complaints Department.
+# App Platform spec for Facility Issue Tracker.
 # deploy.sh renders this with scripts/render-spec.js and feeds the result to
 # `doctl apps create --spec -`. Do not put secret values in this file.
 

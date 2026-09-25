@@ -35,10 +35,10 @@ export default function Form() {
       <Card className="w-full max-w-xl gap-0 overflow-hidden p-0 shadow-lg">
         <header className="border-border border-b px-8 pt-7 pb-5">
           <p className="text-muted-foreground font-mono text-[11px] tracking-[0.14em] uppercase">
-            Form CD-1 · Grievance Intake
+            Form FIT-1 · Grievance Intake
           </p>
           <h1 className="mt-2.5 text-[27px] font-semibold tracking-tight">
-            The Complaints Department
+            Facility Issue Tracker
           </h1>
           <p className="text-muted-foreground mt-1 text-[15px]">
             Complain about anything. One sentence.
