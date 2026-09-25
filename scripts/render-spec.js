@@ -29,6 +29,8 @@ const KEYS = [
   'MARS_WEBHOOK_SECRET',
   'RESET_WEBHOOK_URL',
   'RESET_WEBHOOK_SECRET',
+  'CLOSE_WEBHOOK_URL',
+  'CLOSE_WEBHOOK_SECRET',
   'INFERENCE_BASE_URL',
   'INFERENCE_MODEL',
   'INFERENCE_API_KEY',
@@ -38,9 +40,20 @@ const KEYS = [
   'DB_CA_CERT_B64',
 ];
 
+// Substituted, but allowed to be empty. Each of these is filled in by a
+// trigger that deploy.sh only creates when GITHUB_ISSUE_REPO is set, and the
+// README promises the demo still runs without it. Requiring them would turn
+// "no tracker" into "no deploy".
+const OPTIONAL = new Set([
+  'RESET_WEBHOOK_URL',
+  'RESET_WEBHOOK_SECRET',
+  'CLOSE_WEBHOOK_URL',
+  'CLOSE_WEBHOOK_SECRET',
+]);
+
 const template = fs.readFileSync(templatePath, 'utf8');
 
-const missing = KEYS.filter((k) => !process.env[k]);
+const missing = KEYS.filter((k) => !process.env[k] && !OPTIONAL.has(k));
 if (missing.length) {
   console.error(`render-spec: missing ${missing.join(', ')}`);
   process.exit(1);
@@ -48,7 +61,7 @@ if (missing.length) {
 
 let out = template;
 for (const key of KEYS) {
-  out = out.replaceAll(`\${${key}}`, process.env[key]);
+  out = out.replaceAll(`\${${key}}`, process.env[key] ?? '');
 }
 
 // Any leftover placeholder that is not a platform binding is a template bug.
