@@ -13,8 +13,8 @@ The room watches its own nonsense land on a wall in real time.
 > *Elevator audio subsystem defaulted to jazz preset following maintenance cycle firmware reset.*
 
 Every card on that wall is a webhook, a fresh microVM, an LLM call, a database
-write, a GitHub issue, and a live push to the browser — in about twenty
-seconds, however many of them arrive at once.
+write, a GitHub issue, and a live push to the browser — about a minute, end to
+end, for roughly 20¢.
 
 ---
 
@@ -40,6 +40,8 @@ sequenceDiagram
 
     App->>Trig: signed webhook
     Trig->>VM: start a fresh sandbox
+    Note over Trig,VM: one run at a time — see Throughput
+
     VM->>Inf: classify this grievance
     Inf-->>VM: title, component, severity, owner, SLA, root cause
     VM->>PG: INSERT the ticket
@@ -58,9 +60,21 @@ sequenceDiagram
     Note over Wall: card lands, counter ticks
 ```
 
-The web tier never sees the ticket get written. That is the whole point: 200
-people can submit at once and it stays a web server while the room watches
-dozens of isolated sandboxes spin up and finish.
+The web tier never sees the ticket get written. That is the point of the
+shape: 200 people can submit at once and the form stays instant, because
+nothing on the request path waits for an agent.
+
+### Throughput
+
+What it does **not** do today is run them all at once. A Harness Runtime
+trigger executes **one session at a time**, so complaints queue and land about
+a minute apart. Measured, not estimated — three submitted in the same second
+finished at +74s, +135s and +192s.
+
+The limit is per *trigger*, not per team, so the fix is several intake
+triggers with submissions round-robined across them. That is
+[BACKLOG #21](docs/BACKLOG.md) and it is not built yet. Until it is, plan
+around a queue with a one-minute service time rather than a thundering herd.
 
 ---
 
@@ -80,7 +94,7 @@ flowchart TD
     D --> WH["Webhook trigger<br/><small>one microVM per complaint</small>"]
     D --> RS["Reset trigger<br/><small>closes every open issue</small>"]
     D --> CL["Close trigger<br/><small>closes one ticket's issue</small>"]
-    D --> CR["Cron trigger<br/><small>closing summary — optional</small>"]
+    D --> CR["Cron trigger<br/><small>closing summary — needs SUMMARY_CRON</small>"]
     D --> APP["App Platform<br/><small>form · dashboard · wall</small>"]
     C["./scripts/connect-github.sh<br/><small>OAuth — you click this one</small>"] --> AG["GitHub connection<br/><small>Action Gateway holds the credential</small>"]
 ```
@@ -98,7 +112,8 @@ Skip it and the demo still works, minus the issues. `deploy.sh` tells you
 which of the two states you are in rather than assuming.
 
 **Cost while it's up:** about $5/mo for the app and $15/mo for the database,
-plus per-session compute and tokens. `./destroy.sh` removes all of it.
+plus roughly **20¢ per complaint** in sandbox time and tokens — call it $20
+for a 100-person room. `./destroy.sh` removes all of it.
 
 ---
 
@@ -112,12 +127,13 @@ plus per-session compute and tokens. `./destroy.sh` removes all of it.
 
 Sign in with `ADMIN_PASSWORD`.
 
-**The arc.** Put the QR up and let the room submit. Cards start landing within
-a few seconds and keep landing. The session counter on the wall climbs as
-sandboxes spin up — that's the scale story, without anyone saying the word.
-Close with the executive summary: total tickets, top three components, and a
-straight-faced headcount ask for Facilities. Either let the cron trigger fire
-it on schedule, or press **Generate now** on `/admin/summary`.
+**The arc.** Put the QR up and let the room submit. The first card lands in
+about a minute and the rest follow roughly a minute apart. The session counter
+on the wall ticks as sandboxes come and go — that's the scale story, without
+anyone saying the word. Close with the executive summary: total tickets, top
+three components, and a straight-faced headcount ask for Facilities. Set
+`SUMMARY_CRON` to have it fire on schedule, or press **Generate now** on
+`/admin/summary`.
 
 **Closing one ticket.** Every row on `/admin/tickets`, and every card on the
 dashboard, has a **Close** button. The ticket closes immediately; its GitHub
@@ -125,26 +141,24 @@ issue is closed a minute or so later by an agent, because only a
 trigger-started session can reach Action Gateway. The badge says which of the
 two has happened. The projected wall has no Close button on purpose.
 
-Note that a trigger runs one execution at a time, so closing several tickets
-in a row shuts their issues about a minute apart. The tickets themselves close
-as fast as you can click.
+**Reset demo**, beside Sign out, wipes the database and has an agent close
+every open issue. Ticket numbering continues from GitHub's highest issue, so
+the two stay in step.
 
-**Between run-throughs.** `./scripts/clear-issues.sh` deletes every issue in
-the tracker, wipes the database, and re-aligns the ticket numbering to
-GitHub's next issue number so the two keep matching. It asks before it does
-anything, and it runs as your own `gh` login — the demo itself can create
-issues but deliberately cannot delete them.
+**Between run-throughs.** `./scripts/clear-issues.sh` *deletes* every issue in
+the tracker, wipes the database, and re-aligns the numbering. It asks before
+it does anything, and it runs as your own `gh` login — the demo itself can
+create and close issues but deliberately cannot delete them.
 
 **Rehearsing.** `node scripts/seed.js --fake -n 20` fills the wall instantly:
-no agents, no cost, deterministic rows. Use it for layout and for checking
-the projector.
+no agents, no cost, deterministic rows. Use it for layout and for checking the
+projector.
 
 Dropping `--fake` runs the real thing — one microVM and one GitHub issue per
-complaint. That is a genuine dress rehearsal, and it is the only way to
-rehearse the agent, but it spends sandbox time and leaves real issues in the
-tracker. `npm run db:reset -- --yes` wipes the database between run-throughs
-(it names the cluster before it does anything); the issues you close or
-delete yourself.
+complaint, one after another. That is the only way to rehearse the agent, but
+it spends sandbox time and leaves real issues in the tracker.
+`npm run db:reset -- --yes` wipes the database between run-throughs (it names
+the cluster before it does anything); the issues you close or delete yourself.
 
 ---
 
@@ -188,23 +202,26 @@ fills the wall instantly without touching an agent.
   missing one in front of an audience.
 - **Submissions are data, not instructions.** Anything trying to give the
   agent orders gets filed under `Human Factors`.
-- **The agent's database role can insert a ticket and close a complaint, and
-  nothing else** — it cannot read what anyone wrote. Enforced by Postgres
-  grants, asserted at deploy time.
+- **The agent's database role can insert a ticket, close a complaint and link
+  an issue — nothing else.** It cannot read what anyone wrote, and cannot
+  delete. Enforced by Postgres grants, asserted at deploy time.
 - **Each ticket also opens a GitHub issue**, labelled by severity and
-  component, through Action Gateway — which holds the credential and
-  supplies it when the tool runs, so no GitHub token ever reaches the
-  sandbox. The database row is written first and the issue second, so a
-  tracker failure costs a link, not a ticket.
+  component, through Action Gateway — which holds the credential and supplies
+  it when the tool runs, so no GitHub token ever reaches the sandbox. The
+  database row is written first and the issue second, so a tracker failure
+  costs a link, not a ticket.
 - **Authorize GitHub with `./scripts/connect-github.sh`, not the control
   panel.** Action Gateway resolves a connection by *actor*, and a
   trigger-started session runs as your DigitalOcean account UUID — not your
   username. A connection authorized against any other actor is invisible
   here, and the only symptom is issues silently never appearing. The script
   always targets the right one.
-- **The form is rate limited**, and the inference service allows 240
-  requests/minute per team. A full room fits; a full room twice in one minute
-  does not.
+- **Where the minute goes.** Tool execution is about 10s of it; the rest is
+  sandbox startup and model generation. Installing the Postgres client the
+  image lacks costs under 2s, so that is not the thing to optimise.
+- **The form is rate limited** (12 per IP per minute), and the inference
+  service allows 240 requests/minute per team. Neither is the constraint
+  today — the one-run-at-a-time trigger is.
 
 ---
 
