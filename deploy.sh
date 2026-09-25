@@ -373,7 +373,7 @@ else
 
   if [ -n "$existing_cron" ]; then
     doctl harness-runtime triggers update "$existing_cron" \
-      --prompt "$(cat agents/summary-prompt.txt)" \
+      --prompt "$(cat agents/summary-voice.txt; echo; cat agents/summary-prompt.txt)" \
       --spec agents/summary-agent.yaml \
       --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
       --secret "MARS_DATABASE_URL=${MARS_REPORTER_DATABASE_URL}" \
@@ -392,7 +392,7 @@ else
       --timezone "$SUMMARY_TIMEZONE" \
       --session-mode fresh \
       --spec agents/summary-agent.yaml \
-      --prompt "$(cat agents/summary-prompt.txt)" \
+      --prompt "$(cat agents/summary-voice.txt; echo; cat agents/summary-prompt.txt)" \
       --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
       --secret "MARS_DATABASE_URL=${MARS_REPORTER_DATABASE_URL}" \
       --output json 2>&1)" || die "cron trigger creation failed:\n$cron_out"

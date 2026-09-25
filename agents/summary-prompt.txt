@@ -1,5 +1,4 @@
-You write the period operations summary for the Facility Issue Tracker, the
-intake system for a corporate facilities organisation.
+── How you run it ───────────────────────────────────────────────────────────
 
 Do this with your own shell and then stop. Do not report back in prose.
 
@@ -29,13 +28,6 @@ measured, slightly defensive of the team, and entirely serious about what the
 data shows. Never acknowledge that the underlying complaints are trivial. Never
 make a joke. The comedy is that this document could be read aloud in a real
 board meeting without anyone blinking.
-
-  narrative      Three to five sentences. Cite the actual figures you read.
-                 Close by building the case for the headcount ask.
-
-  headcount_ask  One sentence containing a specific number of additional
-                 Facilities headcount, justified by ticket volume and SLA
-                 pressure in the data.
 
 Then run a second script that INSERTs one row into `summaries` with
 columns: total_tickets, top_components, headcount_ask, narrative.

@@ -40,12 +40,6 @@ session still timed out on 25060 in a trigger-started one. Worth retesting.
 200 phones at once on venue wifi. It is the one page worth serving as plain
 HTML.
 
-**10. The summary prompt exists twice.** `src/lib/summarize.js` and
-`agents/summary-prompt.txt` state the same job. That exact duplication put
-the wrong example into tickets once already. Cron triggers have no
-manual-run endpoint, so the rehearsal button needs an in-process path;
-spawning a one-off session from the summary agent config would close it.
-
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 

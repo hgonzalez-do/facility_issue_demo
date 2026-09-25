@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
 import { inference } from './inference.js';
 import { stats, insertSummary } from '../db/index.js';
@@ -25,20 +28,33 @@ const SUMMARY_TOOL = {
   },
 };
 
-const SYSTEM = `You write the quarterly operations summary for the Facility Issue
-Tracker, the intake system for a corporate facilities organisation.
+/**
+ * The editorial voice, read from the same file the cron agent is given.
+ *
+ * This used to be a second copy of those instructions living here, and the
+ * two drifted — exactly as the ticket prompt did, where a stale copy made
+ * the agent file the example instead of the complaint. What differs between
+ * the two paths is mechanics: the agent queries Postgres from its own shell,
+ * this process already has the figures. The voice is the part that must not
+ * diverge, so there is one of it.
+ */
+const here = path.dirname(fileURLToPath(import.meta.url));
+const VOICE_PATH = path.join(here, '..', '..', 'agents', 'summary-voice.txt');
 
-You will be given real ticket volumes from the intake system. Write the summary
-an operations director would circulate to leadership: measured, slightly
-defensive of the team, and entirely serious about what the data shows.
-
-Never acknowledge that the underlying complaints are trivial. Never make a joke.
-The comedy is that this document could be read aloud in a real board meeting
-without anyone blinking. Cite the actual numbers you are given. Close the
-narrative by building the case for the headcount ask.
-
-The headcount ask must be a specific number of additional Facilities
-headcount, justified by the ticket volume and SLA pressure in the data.`;
+let voice = null;
+function summaryVoice() {
+  if (voice === null) {
+    try {
+      voice = fs.readFileSync(VOICE_PATH, 'utf8').trim();
+    } catch (err) {
+      throw new Error(
+        `could not read agents/summary-voice.txt (${err.code}) — the summary shares its ` +
+          'instructions with the cron agent and cannot run without them',
+      );
+    }
+  }
+  return voice;
+}
 
 /**
  * The closing beat of the talk: total tickets, top three components by volume,
@@ -74,7 +90,7 @@ export async function generateSummary() {
   const response = await inference().messages.create({
     model: config.inference.model,
     max_tokens: 4000,
-    system: SYSTEM,
+    system: summaryVoice(),
     messages: [
       {
         role: 'user',
