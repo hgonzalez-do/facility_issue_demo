@@ -6,19 +6,9 @@ look fine until they are not.
 
 ## Blocking
 
-**1. GitHub connection is not authorized.** Until it is, the agent files the
-ticket and skips the issue. Run `./scripts/connect-github.sh` and open the
-link it prints. Note the actor: a trigger-started session runs as the
-DigitalOcean account UUID, not the username, and a connection authorized
-against any other actor is invisible here.
+*Nothing currently blocking.*
 
 ## Correctness — things that report success while broken
-
-**2. `deploy.sh` reports GitHub connected when it is not.** It reads the
-connection's `status` field, which stayed `active` for two days while every
-tool call failed with "requires an OAuth connection". The record and the
-token behind it expire independently. The check has to exercise a tool, not
-trust a field.
 
 **3. `connect-github.sh --force` cannot force anything.** The API refuses to
 mint a link while it believes the connection is healthy, which is exactly
@@ -45,11 +35,6 @@ passes HTTP(S) and the `allow_ips` form that worked in a directly-created
 session still timed out on 25060 in a trigger-started one. Worth retesting.
 
 ## Demo quality
-
-**8. Use `preload_tools`.** The agent currently calls `action_search` before
-it can file an issue. Preloading exposes the tools with their schemas
-directly, removing a round-trip and a failure mode from every complaint —
-visible latency, in a demo where the room is watching the wall.
 
 **9. The public form ships a ~123 KB gzipped React bundle.** That lands on
 200 phones at once on venue wifi. It is the one page worth serving as plain
@@ -86,9 +71,21 @@ the issue was opened. Two options:
 
 ## Loose ends
 
-**12. A stale `hgonzalez` Action Gateway connection** is still active and
-unused. Trigger sessions run as the account UUID, so it does nothing except
-mislead whoever looks next.
+**12. A stale `hgonzalez` Action Gateway connection** reports `active` and is
+not usable — a probe as that actor gets "requires an OAuth connection".
+Trigger sessions run as the account UUID and never touch it, so it does
+nothing except read healthy while being broken. Delete it:
+`DELETE /v2/action-gateway/connections/{id}`.
+
+**16. Connection status is unreliable in both directions.** The record read
+`active` for two days while every call failed, and read `pending` while
+calls succeeded. Never branch on it; `scripts/check-github.sh` reads trigger
+run history instead.
+
+**17. Runs take 60–125s end to end.** Most of it is the agent installing a
+Postgres client per run, since the sandbox image ships none. A custom
+sandbox template with `psycopg` baked in would cut it, and would let egress
+drop PyPI (see #7).
 
 **13. Five test issues** from 23 September remain in the tracker.
 
