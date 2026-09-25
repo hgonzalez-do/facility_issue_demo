@@ -60,26 +60,27 @@ Two things make this more than a button.
 click mid-talk wipes the wall. Type-the-stack-name to confirm, the way
 `destroy.sh` does, rather than a plain "are you sure".
 
-*The app cannot delete GitHub issues, and should not be able to.* The
-credential lives in Action Gateway and is reachable only from inside a MARS
-sandbox — that is the entire point of routing GitHub through the gateway, and
-handing the web tier a PAT to get a reset button back would trade the demo's
-best security beat for a convenience. Three honest options:
+*The app cannot delete GitHub issues, and should not be able to.* **Decided:
+the button closes issues, it does not delete them.** Action Gateway's GitHub
+toolkit has `update_issue`, so a one-off session can close everything open.
+It has no delete — GitHub only exposes that through GraphQL `deleteIssue`,
+which is not in the catalogue and needs admin on the repository.
 
-- **Close, do not delete.** Action Gateway's GitHub toolkit has
-  `update_issue`, `lock_issue` and `unlock_issue`, but no delete — the API
-  only exposes deletion through GraphQL `deleteIssue`, which is not in the
-  catalogue. The button fires a one-off session that closes open issues.
-  Closed issues still show in the tracker, and numbers are still consumed.
-- **Leave GitHub alone.** Reset the database, re-align the sequence to
-  GitHub's next number, and let old issues accumulate. Simplest, honest, and
-  the tracker filling up over a conference is arguably the better visual.
-- **Delete properly**, which needs a PAT in the web tier and gives back the
-  credential we deliberately removed.
+That asymmetry is the right way round. The running demo should not be able
+to erase its own audit trail, and the web tier should not hold a credential
+that could. Closing is reversible; deleting is not.
 
-Re-aligning afterwards needs GitHub's next issue number, which needs a read
-the app also cannot currently do — the same constraint, in miniature.
-`scripts/reset.js --start-at N` already exists; the number is the hard part.
+Deletion stays a human action, and now has a script:
+`./scripts/clear-issues.sh`. It runs as the operator's own `gh` login —
+a credential the deployed app never sees — asks for typed confirmation,
+probes GitHub for the next issue number afterwards, and re-aligns the ticket
+sequence to match. That last part is the fiddly bit the button would
+otherwise inherit: numbers are never reused, so clearing the tracker does
+not reset the counter.
+
+Still to build: the button itself, the one-off session that closes issues,
+and a way for the app to learn the next issue number without a GitHub
+credential of its own.
 
 **15. Intake has no detail view.** Clicking a complaint should open its
 progress in real time — submitted, webhook fired, session started,

@@ -117,6 +117,12 @@ Close with the executive summary: total tickets, top three components, and a
 straight-faced headcount ask for Facilities. Either let the cron trigger fire
 it on schedule, or press **Generate now** on `/admin/summary`.
 
+**Between run-throughs.** `./scripts/clear-issues.sh` deletes every issue in
+the tracker, wipes the database, and re-aligns the ticket numbering to
+GitHub's next issue number so the two keep matching. It asks before it does
+anything, and it runs as your own `gh` login — the demo itself can create
+issues but deliberately cannot delete them.
+
 **Rehearsing.** `node scripts/seed.js --fake -n 20` fills the wall instantly:
 no agents, no cost, deterministic rows. Use it for layout and for checking
 the projector.
