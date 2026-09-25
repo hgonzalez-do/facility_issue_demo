@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
@@ -6,7 +5,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
+    // import.meta.dirname, not __dirname: Vite's native config loader is
+              // becoming the default and does not provide the CJS globals.
+    alias: { '@': new URL('./src', import.meta.url).pathname },
   },
   build: {
     // Express serves this directory; keep it inside web/ so the server's
