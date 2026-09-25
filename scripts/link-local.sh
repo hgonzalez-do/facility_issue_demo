@@ -44,4 +44,6 @@ MARS_WEBHOOK_SECRET=$(jq -r .webhook_secret .deploy-state.json)
 MARS_TICKET_TABLE=tickets
 RESET_WEBHOOK_URL=$(jq -r '.reset_webhook_url // empty' .deploy-state.json)
 RESET_WEBHOOK_SECRET=$(jq -r '.reset_webhook_secret // empty' .deploy-state.json)
+CLOSE_WEBHOOK_URL=$(jq -r '.close_webhook_url // empty' .deploy-state.json)
+CLOSE_WEBHOOK_SECRET=$(jq -r '.close_webhook_secret // empty' .deploy-state.json)
 EOF

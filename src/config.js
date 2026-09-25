@@ -45,6 +45,10 @@ export const config = {
     // Optional: without it the reset button still wipes the database.
     resetWebhookUrl: process.env.RESET_WEBHOOK_URL || '',
     resetWebhookSecret: process.env.RESET_WEBHOOK_SECRET || '',
+    // Fires the close agent, which closes one ticket's GitHub issue.
+    // Optional: without it the Close button still closes the ticket.
+    closeWebhookUrl: process.env.CLOSE_WEBHOOK_URL || '',
+    closeWebhookSecret: process.env.CLOSE_WEBHOOK_SECRET || '',
     webhookSecret: process.env.MARS_WEBHOOK_SECRET || '',
     ticketTable: process.env.MARS_TICKET_TABLE || 'tickets',
   },

@@ -44,9 +44,17 @@ GRANT USAGE  ON SEQUENCE tickets_id_seq TO mars_writer;
 -- agent still cannot read a single ticket it or anyone else has filed.
 GRANT SELECT (id) ON TABLE tickets TO mars_writer;
 
--- And the two columns it fills in after opening the GitHub issue. Still no
--- UPDATE on anything describing the ticket itself.
-GRANT UPDATE (issue_number, issue_url, issue_at) ON TABLE tickets TO mars_writer;
+-- And the columns it fills in around the GitHub issue: three when it opens
+-- one, and `issue_closed_at` when the close agent shuts one. Still no UPDATE
+-- on anything describing the ticket itself.
+--
+-- The close agent reuses this role rather than getting a third. It is the
+-- same job at a different time — maintaining the link between a ticket and
+-- its issue — and a separate role for one more column would buy a line in
+-- this file and a password to plumb through deploy.sh. What it cannot do is
+-- unchanged: it still cannot read a ticket, a complaint body, or `closed_at`,
+-- which is the app's column and not an agent's.
+GRANT UPDATE (issue_number, issue_url, issue_at, issue_closed_at) ON TABLE tickets TO mars_writer;
 
 -- Close the loop on the complaint it was handed: three columns, no more.
 GRANT UPDATE (status, error, session_id) ON TABLE complaints TO mars_writer;

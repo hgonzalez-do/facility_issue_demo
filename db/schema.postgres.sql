@@ -37,7 +37,14 @@ CREATE TABLE IF NOT EXISTS tickets (
   issue_url              TEXT,
   -- Set by the agent when the GitHub issue is opened, so the detail view
   -- can show that stage rather than inferring it from issue_number.
-  issue_at               TIMESTAMPTZ
+  issue_at               TIMESTAMPTZ,
+  -- Set by the app the moment an operator closes the ticket. Local and
+  -- immediate: the dashboard must not wait on an agent to look right.
+  closed_at              TIMESTAMPTZ,
+  -- Set by the close agent once the GitHub issue is actually closed, which
+  -- happens a minute or so later. Nullable on purpose, exactly like
+  -- issue_at: a tracker failure costs the confirmation, not the close.
+  issue_closed_at        TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS summaries (

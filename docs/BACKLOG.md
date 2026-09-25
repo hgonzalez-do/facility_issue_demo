@@ -80,18 +80,11 @@ run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 every item below is a confirmed gap as of this writing, and most of it is
 one day's work landing faster than the prose describing it.
 
-README:
-
-- the Reset button is not mentioned at all
-- the deploy diagram shows four things `deploy.sh` creates; it now creates
-  five. The reset trigger is missing from it.
+README: *(the deploy diagram and the Reset/Close buttons were fixed when the
+close-issue trigger landed; what is left below still stands.)*
 
 docs/ARCHITECTURE.md:
 
-- the reset trigger is absent entirely — the only occurrence of "reset" is
-  `reset.js` in the file listing
-- `agents/summary-voice.txt` is not in the layout, so nothing explains why
-  the summary's instructions live outside both places that use them
 - the `scripts/` listing predates `clear-issues.sh` and `check-github.sh`
 - the complaint flow diagram does not show `preload_tools`, so it still
   implies a discovery step that no longer happens

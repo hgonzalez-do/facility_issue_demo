@@ -78,6 +78,8 @@ cp .env.example .env     # DIGITALOCEAN_ACCESS_TOKEN, GITHUB_REPO, ADMIN_PASSWOR
 flowchart TD
     D["./deploy.sh"] --> PG[("Managed Postgres<br/><small>schema · mars_writer · mars_reporter</small>")]
     D --> WH["Webhook trigger<br/><small>one microVM per complaint</small>"]
+    D --> RS["Reset trigger<br/><small>closes every open issue</small>"]
+    D --> CL["Close trigger<br/><small>closes one ticket's issue</small>"]
     D --> CR["Cron trigger<br/><small>closing summary — optional</small>"]
     D --> APP["App Platform<br/><small>form · dashboard · wall</small>"]
     C["./scripts/connect-github.sh<br/><small>OAuth — you click this one</small>"] --> AG["GitHub connection<br/><small>Action Gateway holds the credential</small>"]
@@ -116,6 +118,16 @@ sandboxes spin up — that's the scale story, without anyone saying the word.
 Close with the executive summary: total tickets, top three components, and a
 straight-faced headcount ask for Facilities. Either let the cron trigger fire
 it on schedule, or press **Generate now** on `/admin/summary`.
+
+**Closing one ticket.** Every row on `/admin/tickets`, and every card on the
+dashboard, has a **Close** button. The ticket closes immediately; its GitHub
+issue is closed a minute or so later by an agent, because only a
+trigger-started session can reach Action Gateway. The badge says which of the
+two has happened. The projected wall has no Close button on purpose.
+
+Note that a trigger runs one execution at a time, so closing several tickets
+in a row shuts their issues about a minute apart. The tickets themselves close
+as fast as you can click.
 
 **Between run-throughs.** `./scripts/clear-issues.sh` deletes every issue in
 the tracker, wipes the database, and re-aligns the ticket numbering to

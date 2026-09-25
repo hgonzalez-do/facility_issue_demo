@@ -19,6 +19,10 @@ export default function Dashboard({
   const [seed, setSeed] = useState<Ticket[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState(false);
+  // Closing a ticket updates a row that arrives here from the live feed,
+  // which this page does not own. Keep the closed copies locally and lay
+  // them over whichever list is being rendered.
+  const [closed, setClosed] = useState<Record<number, Ticket>>({});
 
   useEffect(() => {
     api.stats().then(setSeedStats);
@@ -67,7 +71,14 @@ export default function Dashboard({
         <Empty>Nothing filed yet. Point the room at <code className="font-mono">/qr</code>.</Empty>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(330px,1fr))] gap-3">
-          {tickets.slice(0, 12).map((t) => <TicketCard key={t.id} ticket={t} />)}
+          {tickets.slice(0, 12).map((t) => (
+            <TicketCard
+              key={t.id}
+              ticket={closed[t.id] ?? t}
+              closable
+              onClosed={(next) => setClosed((c) => ({ ...c, [next.id]: next }))}
+            />
+          ))}
         </div>
       )}
 

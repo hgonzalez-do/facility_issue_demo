@@ -120,6 +120,46 @@ export async function fireResetWebhook() {
 }
 
 /**
+ * Fires the close trigger for one ticket's GitHub issue.
+ *
+ * A trigger again, and for the actor reason in fireResetWebhook above: the
+ * app holds no GitHub credential, so the only way to reach the tracker is a
+ * session started by a trigger.
+ *
+ * The caller has already written `closed_at`. This is the tracker catching
+ * up, so it is fired and forgotten — a ticket that is closed on the wall but
+ * whose issue is still open is a footnote, not a failure.
+ */
+export async function fireCloseIssueWebhook({ ticketId, issueNumber }) {
+  const { closeWebhookUrl, closeWebhookSecret } = config.ingest;
+  if (!closeWebhookUrl) return { fired: false, reason: 'no close trigger configured' };
+
+  const payload = JSON.stringify({
+    ticket_id: ticketId,
+    issue_number: issueNumber,
+    requested_at: new Date().toISOString(),
+  });
+  const headers = { 'content-type': 'application/json' };
+  if (closeWebhookSecret) {
+    const sig = signPayload(payload, closeWebhookSecret);
+    headers['X-DigitalOcean-Signature'] = sig;
+    headers['do-signature'] = sig;
+  }
+
+  const res = await fetch(closeWebhookUrl, {
+    method: 'POST',
+    headers,
+    body: payload,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`close trigger returned ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return { fired: true };
+}
+
+/**
  * Live session census for the dashboard — the "scale story without saying the
  * word scale". Counts sessions by status across the team.
  */

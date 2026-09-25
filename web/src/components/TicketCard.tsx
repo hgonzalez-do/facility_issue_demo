@@ -1,11 +1,27 @@
 import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { CloseTicketButton } from '@/components/CloseTicket';
 import { Severity, SEVERITY_BAR } from '@/components/Severity';
 import { cn } from '@/lib/utils';
 import type { Ticket } from '@/lib/api';
 
-export function TicketCard({ ticket: t, large = false }: { ticket: Ticket; large?: boolean }) {
+/**
+ * `closable` is off by default on purpose. This card is also what the
+ * projected wall renders, and a Close button has no business being on a
+ * screen the room is looking at.
+ */
+export function TicketCard({
+  ticket: t,
+  large = false,
+  closable = false,
+  onClosed,
+}: {
+  ticket: Ticket;
+  large?: boolean;
+  closable?: boolean;
+  onClosed?: (t: Ticket) => void;
+}) {
   return (
     <Card
       className={cn(
@@ -13,6 +29,7 @@ export function TicketCard({ ticket: t, large = false }: { ticket: Ticket; large
         // The severity accent, as a pseudo-element so the card keeps its ring.
         'before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[""]',
         SEVERITY_BAR[t.severity] ?? SEVERITY_BAR.P4,
+        t.closed_at && 'opacity-60',
         'motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2 motion-safe:duration-500',
         large ? 'p-5' : 'p-4',
       )}
@@ -63,6 +80,11 @@ export function TicketCard({ ticket: t, large = false }: { ticket: Ticket; large
             GH #{t.issue_number}
             <ExternalLink className="size-3" />
           </a>
+        )}
+        {closable && (
+          <span className="ml-auto">
+            <CloseTicketButton ticket={t} onClosed={onClosed} className="h-6 px-2 text-[11px]" />
+          </span>
         )}
       </div>
     </Card>

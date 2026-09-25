@@ -119,6 +119,33 @@ does not hold in trigger-started sessions. Both are platform behaviours rather
 than choices — see [PLATFORM-NOTES.md](PLATFORM-NOTES.md). The grants above are
 the boundary that actually holds.
 
+## Closing things
+
+Three of the four agents are webhook triggers rather than sessions the app
+creates, and it is the same reason each time: Action Gateway resolves a
+connection by *actor*, and a trigger-started session runs as the DigitalOcean
+account UUID — the actor the GitHub connection is authorized against. A
+session this process created would run as the username actor and find
+nothing. The app holds no GitHub credential at all.
+
+So anything that has to touch the tracker is a trigger:
+
+| | Closes | Fired by |
+| --- | --- | --- |
+| `reset-agent` | every open issue | the Reset button |
+| `close-issue-agent` | one issue, by number | a ticket's Close button |
+
+Both close. Neither deletes — Action Gateway exposes `update_issue` and no
+delete, which is the right way round: a running demo should not be able to
+erase its own audit trail. Deleting is a human action and lives in
+`scripts/clear-issues.sh`.
+
+Closing a ticket writes `closed_at` in the same request, before any agent is
+asked. `issue_closed_at` is the agent's column and lands a minute later, so
+the two are separate and the dashboard never waits on a sandbox to look
+correct. A trigger runs one execution at a time, so a run of closes shuts
+their issues about a minute apart.
+
 ---
 
 ## Layout
@@ -146,7 +173,11 @@ public/                  CSS + the SSE client
 db/                      Schema and the least-privilege grants
 agents/                  Harness Agent manifests + trigger prompts
                          complaint-agent.yaml   webhook: one session per grievance
+                         reset-agent.yaml       webhook: closes every open issue
+                         close-issue-agent.yaml webhook: closes one ticket's issue
                          summary-agent.yaml     cron: the closing summary
+                         summary-voice.txt      the shared editorial voice, read by
+                                                both summarize.js and the cron prompt
 scripts/                 deploy helpers and operational tools
                          connect-github.sh   the one OAuth step
                          link-local.sh       point a local run at the cluster

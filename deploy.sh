@@ -126,7 +126,7 @@ state_set() {
 
 # ── 1. Managed Postgres ──────────────────────────────────────────────────────
 
-step "1/6  Managed Postgres"
+step "1/7  Managed Postgres"
 
 db_id="$(doctl databases list --format ID,Name --no-header 2>/dev/null \
   | awk -v n="$DB_CLUSTER_NAME" '$2==n {print $1}' | head -1)"
@@ -188,7 +188,7 @@ ok "database endpoint $DB_PUBLIC_HOST ($DB_PUBLIC_IP)"
 
 # ── 2. schema + least-privilege roles ────────────────────────────────────────
 
-step "2/6  Schema and roles"
+step "2/7  Schema and roles"
 
 MARS_DB_PASSWORD="$(state_get mars_db_password)"
 MARS_REPORTER_PASSWORD="$(state_get mars_reporter_password)"
@@ -222,7 +222,7 @@ MARS_REPORTER_DATABASE_URL="postgresql://mars_reporter:${MARS_REPORTER_PASSWORD}
 
 # ── 3. webhook trigger ───────────────────────────────────────────────────────
 
-step "3/6  Harness Runtime webhook trigger"
+step "3/7  Harness Runtime webhook trigger"
 
 export INFERENCE_BASE_URL INFERENCE_MODEL INFERENCE_HOST INFERENCE_API_KEY
 export MARS_TICKET_TABLE MARS_DATABASE_URL MARS_REPORTER_DATABASE_URL DB_PUBLIC_HOST DB_PUBLIC_IP
@@ -312,7 +312,7 @@ fi
 
 # ── 3b. reset trigger ────────────────────────────────────────────────────────
 
-step "4/6  Harness Runtime reset trigger"
+step "4/7  Harness Runtime reset trigger"
 
 if [ -z "$GITHUB_ISSUE_REPO" ]; then
   info "GITHUB_ISSUE_REPO not set — skipping the reset trigger."
@@ -359,9 +359,60 @@ else
   fi
 fi
 
+# ── 3c. close-issue trigger ──────────────────────────────────────────────────
+
+step "5/7  Harness Runtime close-issue trigger"
+
+if [ -z "$GITHUB_ISSUE_REPO" ]; then
+  info "GITHUB_ISSUE_REPO not set — skipping the close-issue trigger."
+else
+  CLOSE_TRIGGER="${STACK_NAME}-close"
+  existing_close="$(doctl harness-runtime triggers list --output json 2>/dev/null \
+    | jq -r --arg n "$CLOSE_TRIGGER" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
+
+  CLOSE_WEBHOOK_URL="$(state_get close_webhook_url)"
+  CLOSE_WEBHOOK_SECRET="$(state_get close_webhook_secret)"
+
+  if [ -n "$existing_close" ] && [ -n "$CLOSE_WEBHOOK_URL" ] && [ -n "$CLOSE_WEBHOOK_SECRET" ]; then
+    doctl harness-runtime triggers update "$existing_close" \
+      --prompt "$(cat agents/close-issue-prompt.txt)" \
+      --spec agents/close-issue-agent.yaml \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
+      >/dev/null 2>&1 \
+      && ok "trigger $CLOSE_TRIGGER updated" \
+      || warn "trigger $CLOSE_TRIGGER could not be updated"
+  else
+    [ -n "$existing_close" ] && doctl harness-runtime triggers delete "$existing_close" --force >/dev/null 2>&1
+
+    doctl harness-runtime validate agents/close-issue-agent.yaml >/dev/null \
+      || die "agents/close-issue-agent.yaml failed validation."
+
+    info "creating $CLOSE_TRIGGER"
+    close_out="$(doctl harness-runtime triggers create \
+      --kind webhook --provider custom \
+      --name "$CLOSE_TRIGGER" \
+      --session-mode fresh \
+      --spec agents/close-issue-agent.yaml \
+      --prompt "$(cat agents/close-issue-prompt.txt)" \
+      --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
+      --secret "MARS_DATABASE_URL=${MARS_DATABASE_URL}" \
+      --output json 2>&1)" || die "close-issue trigger creation failed:\n$close_out"
+
+    CLOSE_WEBHOOK_URL="$(echo "$close_out" | first_of '(.webhook.webhook_url // .webhook_url)')"
+    CLOSE_WEBHOOK_SECRET="$(echo "$close_out" | first_of '(.webhook_secret // .webhook.secret // .secret)')"
+    [ -n "$CLOSE_WEBHOOK_URL" ] || die "no webhook_url in close-issue trigger response."
+
+    state_set close_trigger_id "$(echo "$close_out" | first_of '(.trigger_id // .id)')"
+    state_set close_webhook_url "$CLOSE_WEBHOOK_URL"
+    state_set close_webhook_secret "$CLOSE_WEBHOOK_SECRET"
+    ok "created"
+  fi
+fi
+
 # ── 4. cron trigger ──────────────────────────────────────────────────────────
 
-step "5/6  Harness Runtime cron trigger"
+step "6/7  Harness Runtime cron trigger"
 
 if [ -z "$SUMMARY_CRON" ]; then
   info "SUMMARY_CRON not set — skipping the scheduled summary."
@@ -404,7 +455,7 @@ fi
 
 # ── 5. App Platform ──────────────────────────────────────────────────────────
 
-step "6/6  App Platform"
+step "7/7  App Platform"
 
 SESSION_SECRET="$(state_get session_secret)"
 [ -n "$SESSION_SECRET" ] || SESSION_SECRET="$(openssl rand -hex 32)"
@@ -414,6 +465,7 @@ export STACK_NAME DO_REGION_SLUG DB_CLUSTER_NAME DB_NAME APP_SIZE
 export GITHUB_REPO GITHUB_BRANCH
 export MARS_WEBHOOK_URL MARS_WEBHOOK_SECRET
 export RESET_WEBHOOK_URL="${RESET_WEBHOOK_URL:-}" RESET_WEBHOOK_SECRET="${RESET_WEBHOOK_SECRET:-}"
+export CLOSE_WEBHOOK_URL="${CLOSE_WEBHOOK_URL:-}" CLOSE_WEBHOOK_SECRET="${CLOSE_WEBHOOK_SECRET:-}"
 export ADMIN_PASSWORD SESSION_SECRET
 
 # Base64 so a multi-line PEM survives the YAML round trip intact.

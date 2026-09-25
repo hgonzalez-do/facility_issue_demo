@@ -8,10 +8,11 @@ import {
   listSummaries,
   resetAll,
   nextTicketNumber,
+  closeTicket,
 } from '../db/index.js';
 import { COMPONENTS, SEVERITIES } from '../lib/ticket-schema.js';
 import { generateSummary } from '../lib/summarize.js';
-import { sessionCensus, fireResetWebhook } from '../lib/mars.js';
+import { sessionCensus, fireResetWebhook, fireCloseIssueWebhook } from '../lib/mars.js';
 import {
   checkPassword,
   clearSessionCookie,
@@ -76,6 +77,51 @@ adminRouter.get('/tickets', async (req, res, next) => {
         offset,
       }),
     );
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Close one ticket.
+ *
+ * Two halves that fail independently, the same shape as /reset. Closing the
+ * row is ours and always happens; closing the GitHub issue is the agent's
+ * job, fired as a webhook so it runs under the actor the GitHub connection
+ * is authorized against.
+ *
+ * The response does not wait for the tracker. A trigger runs one execution
+ * at a time, so closing several tickets in a row would otherwise queue the
+ * UI behind a minute of agent time per click.
+ */
+adminRouter.post('/tickets/:id/close', async (req, res, next) => {
+  const id = Number.parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'bad ticket id' });
+  }
+
+  try {
+    const ticket = await closeTicket(id);
+    if (!ticket) return res.status(404).json({ error: 'no such ticket' });
+
+    let tracker = 'skipped — no issue on this ticket';
+    if (ticket.issue_number && !ticket.issue_closed_at) {
+      try {
+        const { fired, reason } = await fireCloseIssueWebhook({
+          ticketId: ticket.id,
+          issueNumber: ticket.issue_number,
+        });
+        tracker = fired ? 'closing' : `skipped — ${reason}`;
+      } catch (err) {
+        // The ticket is closed; do not fail the request over the tracker.
+        console.error(`[admin] close trigger for ticket ${id} failed:`, err.message);
+        tracker = `failed — ${err.message}`;
+      }
+    } else if (ticket.issue_closed_at) {
+      tracker = 'already closed';
+    }
+
+    res.json({ ticket, tracker });
   } catch (err) {
     next(err);
   }

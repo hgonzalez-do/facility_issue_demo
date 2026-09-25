@@ -59,6 +59,8 @@ function mapTicket(r) {
     affected_users: Number(r.affected_users),
     sla_hours: Number(r.sla_hours),
     created_at: iso(r.created_at),
+    closed_at: r.closed_at ? iso(r.closed_at) : null,
+    issue_closed_at: r.issue_closed_at ? iso(r.issue_closed_at) : null,
   };
 }
 
@@ -170,6 +172,32 @@ export async function insertTicket(t) {
       t.root_cause_hypothesis,
       t.session_id ?? null,
     ],
+  );
+  return mapTicket(row);
+}
+
+/**
+ * Close one ticket.
+ *
+ * `closed_at` is ours and is written here and now — the operator clicked, so
+ * the row is closed before anything is asked of an agent. Closing the GitHub
+ * issue happens separately and later; `issue_closed_at` is the agent's column
+ * and stays null until it confirms.
+ *
+ * Returns null if there is no such ticket, and the existing row untouched if
+ * it was already closed, so a double click is not an error.
+ */
+export async function closeTicket(id) {
+  const existing = await db().get('SELECT * FROM tickets WHERE id = ?', [id]);
+  if (!existing) return null;
+  if (existing.closed_at) return mapTicket(existing);
+
+  const row = await db().get(
+    `UPDATE tickets
+        SET closed_at = now()
+      WHERE id = ?
+      RETURNING *`,
+    [id],
   );
   return mapTicket(row);
 }

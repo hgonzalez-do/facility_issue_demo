@@ -71,6 +71,8 @@ try {
   await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS issue_number INTEGER');
   await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS issue_url TEXT');
   await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS issue_at TIMESTAMPTZ');
+  await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ');
+  await client.query('ALTER TABLE tickets ADD COLUMN IF NOT EXISTS issue_closed_at TIMESTAMPTZ');
   await client.query('ALTER TABLE complaints ADD COLUMN IF NOT EXISTS dispatched_at TIMESTAMPTZ');
   console.log('  schema applied');
 

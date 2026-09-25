@@ -14,6 +14,11 @@ export type Ticket = {
   session_id: string | null;
   issue_number: number | null;
   issue_url: string | null;
+  // Written by the app the moment the operator clicks Close.
+  closed_at: string | null;
+  // Written by the close agent once the GitHub issue is actually shut, about
+  // a minute later. Null while that is still in flight.
+  issue_closed_at: string | null;
   complaint_body?: string | null;
 };
 
@@ -112,6 +117,16 @@ export const api = {
   },
 
   logout: () => fetch('/api/logout', { method: 'POST' }),
+
+  async closeTicket(id: number) {
+    const res = await fetch(`/api/tickets/${id}/close`, {
+      method: 'POST',
+      headers: { accept: 'application/json' },
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new HttpError(res.status, json.error ?? 'Could not close the ticket.');
+    return json as { ticket: Ticket; tracker: string };
+  },
 
   async reset() {
     const res = await fetch('/api/reset', {

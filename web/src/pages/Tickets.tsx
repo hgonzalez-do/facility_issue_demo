@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Section } from '@/components/AdminShell';
+import { CloseTicketButton } from '@/components/CloseTicket';
 import { Severity } from '@/components/Severity';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { api, type Ticket } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 const PER_PAGE = 25;
 
@@ -77,18 +79,22 @@ export default function Tickets() {
               <TableHead>Root cause hypothesis</TableHead>
               <TableHead>Issue</TableHead>
               <TableHead>Filed</TableHead>
+              <TableHead className="w-[104px]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={10} className="text-muted-foreground py-10 text-center">
+                <TableCell colSpan={11} className="text-muted-foreground py-10 text-center">
                   No tickets match.
                 </TableCell>
               </TableRow>
             )}
             {rows.map((t) => (
-              <TableRow key={t.id} className="[&>td]:py-3 [&>td]:align-top">
+              <TableRow
+                key={t.id}
+                className={cn('[&>td]:py-3 [&>td]:align-top', t.closed_at && 'opacity-55')}
+              >
                 <TableCell className="text-muted-foreground font-mono">{t.id}</TableCell>
                 <TableCell className="max-w-[320px] whitespace-normal">
                   <div className="text-foreground font-medium">{t.title}</div>
@@ -116,6 +122,14 @@ export default function Tickets() {
                 </TableCell>
                 <TableCell className="text-muted-foreground font-mono text-[11.5px] whitespace-nowrap">
                   {new Date(t.created_at).toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right">
+                  <CloseTicketButton
+                    ticket={t}
+                    onClosed={(next) =>
+                      setRows((rs) => rs.map((r) => (r.id === next.id ? next : r)))
+                    }
+                  />
                 </TableCell>
               </TableRow>
             ))}

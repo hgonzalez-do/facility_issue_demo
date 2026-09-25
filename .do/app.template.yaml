@@ -96,6 +96,15 @@ services:
         scope: RUN_TIME
         type: SECRET
         value: ${RESET_WEBHOOK_SECRET}
+      # Fires the close agent from a ticket's Close button. Optional:
+      # without it the button still closes the ticket.
+      - key: CLOSE_WEBHOOK_URL
+        scope: RUN_TIME
+        value: ${CLOSE_WEBHOOK_URL}
+      - key: CLOSE_WEBHOOK_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: ${CLOSE_WEBHOOK_SECRET}
 
       # ── inference ───────────────────────────────────────────────────────
       - key: INFERENCE_BASE_URL
