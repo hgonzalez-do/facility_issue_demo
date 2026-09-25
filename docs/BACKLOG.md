@@ -6,33 +6,44 @@ look fine until they are not.
 
 ## Blocking
 
-**21. Trigger executions run one at a time.** Measured 2026-09-25: three
-complaints submitted within one second finished at +74s, +135s and +192s.
-The execution list shows `running pending pending`, then
-`succeeded running pending` — the second session does not start until the
-first ends. Two earlier bursts (seven and five submissions, 2026-09-23)
-show the same staircase, ~85s apart, so this is systematic rather than a
-bad afternoon.
+**21. Trigger executions run one at a time — per trigger.** Measured
+2026-09-25: three complaints submitted within one second finished at +74s,
++135s and +192s. The execution list shows `running pending pending`, then
+`succeeded running pending`. Two earlier bursts (seven and five
+submissions, 2026-09-23) show the same staircase, so it is systematic.
 
-This makes the demo's central claim false as deployed. The README says 200
-people can submit at once and "dozens of isolated sandboxes spin up"; in
-fact the *n*th person waits about *n* minutes. Ten submissions is a ten
-minute tail. A full room never drains.
+As deployed this makes the README's central claim false. It says 200 people
+can submit at once and "dozens of isolated sandboxes spin up"; in fact the
+*n*th person waits about *n* minutes, and a full room never drains.
 
-Nothing in the trigger config controls this — there is no concurrency field
-— so it is a team quota. The public preview terms mention "concurrent agent
-run quotas" without giving a number, and the docs' Limits page 404s.
+**The limit is per-trigger, not per-team, and that makes it ours to fix.**
+Two throwaway triggers fired in the same second both sat at `running`
+together for a full minute. Firing each of them twice gave
+`probe-a=[running pending] probe-b=[running pending]` — two concurrent
+runs, one per trigger. So *N* intake triggers buy exactly *N* concurrent
+complaints, with no quota request and no platform change.
 
-What to do, in order:
+The work:
 
-1. Ask internally for the team's concurrent-run quota to be raised. This is
-   the only fix that makes the claim true.
-2. Find out whether the quota is per-trigger or per-team. If per-trigger,
-   sharding across a handful of intake triggers is a real mitigation and
-   costs nothing. Untested — fire two different triggers at once and watch
-   whether both reach `running`.
-3. Until one of those lands, either say something honest on stage about
-   queue depth, or pre-seed the wall and submit a handful live.
+- `deploy.sh` creates `complaints-dept-intake-1..N` from the one manifest
+  it already renders, instead of a single trigger. The prompt is unchanged;
+  only the name differs.
+- `src/lib/mars.js` holds a list of (url, secret) pairs rather than one,
+  and `fireWebhook` picks round-robin. A complaint does not care which
+  shard runs it.
+- `scripts/check-github.sh` reads execution history from shard 1, or from
+  all of them.
+- Pick *N* from the room: at ~60s per run, *N*=8 clears 8 complaints a
+  minute, which covers a busy Q&A. *N*=16 if the room is large. Triggers
+  are free to create; only running sessions cost.
+
+Two things to confirm before committing to a number: whether a per-team
+ceiling appears at higher *N* (only two shards have been tested), and that
+the inference service's 240 req/min still holds — it is far above what
+*N*=16 can generate, so this is a formality.
+
+Until it ships, the honest framing on stage is that the wall is a queue
+with a one-minute service time, not a thundering herd.
 
 ## Correctness — things that report success while broken
 

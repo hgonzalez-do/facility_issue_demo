@@ -18,19 +18,27 @@ a DigitalOcean maintenance page that reads exactly like an outage.
 **`HARNESS_INFERENCE_BASE_URL` is not read by `opencode`.** Set it anyway — it
 is the documented platform key — but `ANTHROPIC_BASE_URL` is what takes effect.
 
-**Trigger executions are serialized.** Fire three webhooks in the same
-second and the execution list reads `running pending pending`, then
-`succeeded running pending`: the next session starts only when the previous
-one ends. There is no concurrency field on a trigger, so this is a team
-quota — the public preview terms mention "concurrent agent run quotas"
-without a number, and the docs' Limits page 404s. Budget about one run per
-minute, and do not promise an audience that their submissions run in
-parallel until you have measured your own team's quota:
+**A trigger runs one execution at a time, but triggers are independent of
+each other.** Fire the same webhook three times in one second and the
+execution list reads `running pending pending`, then
+`succeeded running pending`. Fire two *different* triggers in the same
+second and both sit at `running` together. Firing each of two triggers
+twice gives one `running` and one `pending` on each — concurrency is 1 per
+trigger, and shards do not contend.
+
+There is no concurrency field on a trigger, and the docs' Limits page
+404s, so this is worth re-measuring on your own team rather than trusting
+the numbers here. The check costs nothing:
 
 ```bash
 doctl harness-runtime triggers list-executions <id> --output json \
   | jq -r 'sort_by(.created_at) | .[] | "\(.created_at) \(.status)"'
 ```
+
+The practical consequence: if you need *N* concurrent runs of the same
+agent, create *N* triggers from one manifest and round-robin across them.
+Do not expect a single trigger to fan out, and do not promise an audience
+parallelism you have not measured.
 
 **A session's log outlives the session.** `doctl harness-runtime logs
 <session>` 404s within minutes of a trigger run finishing, but the
