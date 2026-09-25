@@ -49,6 +49,38 @@ spawning a one-off session from the summary agent config would close it.
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 
+**18. A reset button in the admin UI.** Wipe tickets, complaints and
+summaries, clear the tracker, and re-align the ticket sequence — without
+dropping to a terminal between rehearsals. Currently three manual steps, one
+of which needs a number looked up by hand.
+
+Two things make this more than a button.
+
+*It is destructive, and it sits next to the thing being projected.* A stray
+click mid-talk wipes the wall. Type-the-stack-name to confirm, the way
+`destroy.sh` does, rather than a plain "are you sure".
+
+*The app cannot delete GitHub issues, and should not be able to.* The
+credential lives in Action Gateway and is reachable only from inside a MARS
+sandbox — that is the entire point of routing GitHub through the gateway, and
+handing the web tier a PAT to get a reset button back would trade the demo's
+best security beat for a convenience. Three honest options:
+
+- **Close, do not delete.** Action Gateway's GitHub toolkit has
+  `update_issue`, `lock_issue` and `unlock_issue`, but no delete — the API
+  only exposes deletion through GraphQL `deleteIssue`, which is not in the
+  catalogue. The button fires a one-off session that closes open issues.
+  Closed issues still show in the tracker, and numbers are still consumed.
+- **Leave GitHub alone.** Reset the database, re-align the sequence to
+  GitHub's next number, and let old issues accumulate. Simplest, honest, and
+  the tracker filling up over a conference is arguably the better visual.
+- **Delete properly**, which needs a PAT in the web tier and gives back the
+  credential we deliberately removed.
+
+Re-aligning afterwards needs GitHub's next issue number, which needs a read
+the app also cannot currently do — the same constraint, in miniature.
+`scripts/reset.js --start-at N` already exists; the number is the hard part.
+
 **15. Intake has no detail view.** Clicking a complaint should open its
 progress in real time — submitted, webhook fired, session started,
 classified, ticket written, issue opened — with elapsed time per stage,
@@ -82,7 +114,7 @@ nothing except read healthy while being broken. Delete it:
 calls succeeded. Never branch on it; `scripts/check-github.sh` reads trigger
 run history instead.
 
-**17. Runs take 60–125s end to end.** Most of it is the agent installing a
+**17. Runs take 60–125s end to end.** *(Deferred — revisit after the talk.)* Most of it is the agent installing a
 Postgres client per run, since the sandbox image ships none. A custom
 sandbox template with `psycopg` baked in would cut it, and would let egress
 drop PyPI (see #7).
