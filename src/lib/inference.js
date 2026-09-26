@@ -28,7 +28,7 @@ export function inference() {
   return client;
 }
 
-/** Reachability + credential check, used by scripts and `/healthz?deep=1`. */
+/** Reachability + credential check. Used by `/healthz?deep=1`. */
 export async function pingInference() {
   const res = await inference().messages.create({
     model: config.inference.model,

@@ -57,6 +57,10 @@ export type Stats = {
   pending: number;
   processing: number;
   failed: number;
+  /** Tickets citing an issue number that is not their own. Zero is healthy. */
+  drifted: number;
+  /** The widest ticket/issue gap seen. */
+  driftMax: number;
   byComponent: { component: string; count: number }[];
   bySeverity: { severity: string; count: number }[];
   byOwner: { owner: string; count: number }[];

@@ -11,19 +11,23 @@
 # Why this needs a human: OAuth. deploy.sh can create every other resource
 # unattended, but not this.
 #
-#   ./scripts/connect-github.sh --force   re-check and print status
+#   ./scripts/connect-github.sh --force   revoke and re-authorize
 #
-# A caveat this script cannot work around. The connection record and the
-# underlying GitHub token expire independently: the token can go stale while
-# the record still reports "active", and the API refuses to mint a new
-# authorization link for a connection it believes is fine. The symptom is
-# tool calls failing with "requires an OAuth connection" while everything
-# here looks healthy, and issues silently never appearing.
+# Why --force exists. The connection record and the underlying GitHub token
+# expire independently: the token can go stale while the record still reports
+# "active", and the API refuses to mint a new authorization link for a
+# connection it believes is fine. The symptom is tool calls failing with
+# "requires an OAuth connection" while everything here looks healthy, and
+# issues silently never appearing.
 #
-# When that happens, the agent's own run output contains a fresh connect link
-# and verification code — Action Gateway mints one on the failure. Use that,
-# or revoke the connection in the control panel (Managed Agents > Action
-# Gateway > Connections) and run this script again.
+# --force DELETEs the connection first, which returns it to `revoked`, after
+# which a POST issues a link again. That is the only call that breaks the
+# deadlock — there is no "refresh" and no way to ask for a link while the
+# record claims to be healthy.
+#
+# It is destructive by design: between the revoke and your click, no agent
+# can file an issue. The agent's own run output also carries a fresh connect
+# link on failure, so if a run is in flight, that link is the cheaper route.
 #
 # The actor is the subtle part. Action Gateway resolves a connection by
 # actor id, and a *trigger-started* session runs as your DigitalOcean user
@@ -34,8 +38,8 @@
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [ -t 1 ]; then BOLD=$'\033[1m'; GREEN=$'\033[32m'; DIM=$'\033[2m'; RESET=$'\033[0m'
-else BOLD=""; GREEN=""; DIM=""; RESET=""; fi
+if [ -t 1 ]; then BOLD=$'\033[1m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'; DIM=$'\033[2m'; RESET=$'\033[0m'
+else BOLD=""; GREEN=""; YELLOW=""; DIM=""; RESET=""; fi
 
 [ -f .env ] || { echo ".env not found" >&2; exit 1; }
 set -a; . ./.env; set +a
@@ -53,13 +57,29 @@ AUTH=(-H "Authorization: Bearer $DIGITALOCEAN_ACCESS_TOKEN")
 force=""
 [ "${1:-}" = "--force" ] && force=1
 
-existing="$(curl -sf "${AUTH[@]}" "$API" \
-  | jq -r --arg a "$ACTOR" '.connections[]? | select(.provider=="github" and .user_id==$a) | .status' \
+conn="$(curl -sf "${AUTH[@]}" "$API" \
+  | jq -r --arg a "$ACTOR" '.connections[]? | select(.provider=="github" and .user_id==$a) | "\(.status) \(.id)"' \
   | head -1 || true)"
+existing="${conn%% *}"
+conn_id="${conn##* }"
 
 if [ "$existing" = "active" ] && [ -z "$force" ]; then
   printf "\n  %s✓%s GitHub is already authorized for actor %s\n\n" "$GREEN" "$RESET" "$ACTOR"
   exit 0
+fi
+
+# --force means the record looks healthy and the token behind it is not, which
+# is the one case where you actually need a new link and the one case the API
+# refuses to mint one. DELETE returns the record to `revoked`, after which a
+# POST issues a link again. There is no gentler call that achieves this.
+if [ -n "$force" ] && [ -n "$conn_id" ] && [ "$conn_id" != "null" ]; then
+  printf "\n  %s!%s Revoking the existing GitHub connection for actor %s\n" "$YELLOW" "$RESET" "$ACTOR"
+  printf "    %sIssues will not be filed until you complete the link below.%s\n" "$DIM" "$RESET"
+  if curl -sf -X DELETE "${AUTH[@]}" "$API/$conn_id" >/dev/null 2>&1; then
+    printf "  %s✓%s revoked\n" "$GREEN" "$RESET"
+  else
+    printf "  %s!%s could not revoke %s — asking for a link anyway\n" "$YELLOW" "$RESET" "$conn_id"
+  fi
 fi
 
 resp="$(curl -sf -X POST "${AUTH[@]}" -H "Content-Type: application/json" "$API" \
@@ -75,8 +95,8 @@ if [ -z "$url" ]; then
   # it does even when the token behind it has expired.
   printf "\n  %s✓%s GitHub connection is active for actor %s\n" "$GREEN" "$RESET" "$ACTOR"
   printf "  %sIf tools still fail with \"requires an OAuth connection\", the token\n" "$DIM"
-  printf "  behind this record has expired. Revoke the connection in the control\n"
-  printf "  panel and re-run, or use the link in the agent's run output.%s\n\n" "$RESET"
+  printf "  behind this record has expired. Re-run with --force to revoke it and\n"
+  printf "  get a fresh link.%s\n\n" "$RESET"
   exit 0
 fi
 

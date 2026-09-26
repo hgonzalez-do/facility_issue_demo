@@ -275,7 +275,17 @@ export async function stats() {
          (SELECT COUNT(*) FROM tickets)                             AS tickets,
          (SELECT COUNT(*) FROM complaints WHERE status = 'pending')    AS pending,
          (SELECT COUNT(*) FROM complaints WHERE status = 'processing') AS processing,
-         (SELECT COUNT(*) FROM complaints WHERE status = 'failed')     AS failed`,
+         (SELECT COUNT(*) FROM complaints WHERE status = 'failed')     AS failed,
+         -- Ticket #N is supposed to be issue #N. GitHub never reuses a
+         -- number, so one failed issue step puts the two counters out of
+         -- step for good, and every card after it cites the wrong issue.
+         -- Both numbers are already on the row, so the drift is detectable
+         -- here — no GitHub credential needed, which matters because the
+         -- app deliberately has none.
+         (SELECT COUNT(*) FROM tickets
+           WHERE issue_number IS NOT NULL AND issue_number <> id)   AS drifted,
+         (SELECT COALESCE(MAX(ABS(issue_number - id)), 0) FROM tickets
+           WHERE issue_number IS NOT NULL)                          AS drift_max`,
     ),
     db().all(
       'SELECT component, COUNT(*) AS count FROM tickets GROUP BY component ORDER BY count DESC, component ASC',
@@ -296,6 +306,10 @@ export async function stats() {
     pending: num(totals, 'pending'),
     processing: num(totals, 'processing'),
     failed: num(totals, 'failed'),
+    // How many tickets cite an issue number that is not their own, and the
+    // widest gap. Zero is the only healthy value.
+    drifted: num(totals, 'drifted'),
+    driftMax: num(totals, 'drift_max'),
     byComponent: byComponent.map((r) => ({ component: r.component, count: Number(r.count) })),
     bySeverity: bySeverity.map((r) => ({ severity: r.severity, count: Number(r.count) })),
     byOwner: owners.map((r) => ({ owner: r.suggested_owner, count: Number(r.count) })),

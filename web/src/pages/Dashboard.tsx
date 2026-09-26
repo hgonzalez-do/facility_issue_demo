@@ -52,6 +52,20 @@ export default function Dashboard({
 
   return (
     <>
+      {(stats?.drifted ?? 0) > 0 && (
+        <div className="border-destructive/40 bg-destructive/10 text-foreground mb-4 rounded-md border px-3.5 py-2.5 text-[13px]">
+          <strong className="font-semibold">
+            {stats?.drifted} ticket{stats?.drifted === 1 ? '' : 's'} no longer
+            match{stats?.drifted === 1 ? 'es' : ''} its issue number
+          </strong>{' '}
+          (off by up to {stats?.driftMax}). GitHub never reuses a number, so one
+          failed issue step puts the counters out of step permanently — every card
+          after it cites the wrong issue. Re-align with{' '}
+          <code className="font-mono text-[12px]">npm run db:reset -- --start-at N</code>{' '}
+          or the Reset button, which does it for you.
+        </div>
+      )}
+
       <Section>Intake volume</Section>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(158px,1fr))] gap-3">
         <Stat label="Tickets filed" value={stats?.tickets ?? 0} tone="primary" />
