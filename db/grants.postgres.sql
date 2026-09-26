@@ -105,7 +105,17 @@ GRANT SELECT ON TABLE tickets   TO mars_reporter;
 GRANT INSERT ON TABLE summaries TO mars_reporter;
 GRANT USAGE  ON SEQUENCE summaries_id_seq TO mars_reporter;
 
+-- One column of SELECT on summaries, for the same reason as tickets.id: the
+-- agent is asked to report the row it inserted, and `INSERT ... RETURNING id`
+-- is a read. Without it the first real cron run did not fail — it groped.
+-- Sixteen scripts, a currval() workaround, and a probe row reading
+-- ('test', 'test narrative') written into the production table, at $0.43
+-- against $0.18 for a complaint. Granting exactly `id` costs nothing: the
+-- narrative, the headcount ask and every other summary stay unreadable to
+-- the role that writes them.
+GRANT SELECT (id) ON TABLE summaries TO mars_reporter;
+
 -- Explicitly denied:
 --   complaints : no access of any kind — it never sees what people wrote
 --   tickets    : no INSERT, no UPDATE, no DELETE
---   summaries  : no SELECT, no UPDATE, no DELETE — append-only
+--   summaries  : SELECT on `id` only, no UPDATE, no DELETE — append-only

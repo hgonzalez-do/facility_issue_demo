@@ -49,8 +49,30 @@ session still timed out on 25060 in a trigger-started one. Worth retesting.
 
 ## Demo quality
 
-**11. No cron trigger is deployed.** The closing executive summary has never
-run on its schedule. Set `SUMMARY_CRON` and rehearse it.
+**11 is done.** The closing beat has now run on its own schedule, twice,
+and three separate things were stopping it.
+
+`.env.example` documented the expression unquoted — `SUMMARY_CRON=45 16 * * *`.
+`deploy.sh` sources that file, so bare it parses as an assignment followed by
+a command, the variable arrives empty, and the deploy reports "SUMMARY_CRON
+not set" to someone who just set it. That alone would explain why this never
+ran.
+
+The update path never re-sent `--cron-expr` or `--timezone`, so changing the
+schedule and re-deploying kept the old one. And clearing `SUMMARY_CRON`
+skipped the whole block rather than removing the trigger, so there was no way
+to turn the summary off from here once it existed.
+
+The first real run also revealed what the grants were costing. `mars_reporter`
+could INSERT into `summaries` but not read `id` back, so the agent could not
+do `INSERT ... RETURNING id` and went looking: sixteen scripts, a `lastval()`
+detour, and a probe row reading ('test', 'test narrative') written into the
+table the dashboard reads on stage. 17 steps, $0.43. With `GRANT SELECT (id)`
+and a prompt that says the table is not scratch space: **3 steps, $0.12, one
+clean row.** Same lesson as `tickets.id`, found the same way.
+
+`SUMMARY_CRON` is left empty deliberately, so nothing fires daily. Set it to
+a few minutes before your talk ends — quoted — and re-run `deploy.sh`.
 
 **19 is done.** Every gap that audit found is closed: the README deploy
 diagram shows all five things `deploy.sh` creates, ARCHITECTURE's layout

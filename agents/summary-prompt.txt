@@ -36,3 +36,13 @@ columns: total_tickets, top_components, headcount_ask, narrative.
   [{"component": "Beverages", "count": 12}, ...]
 
 Use parameterised queries. Commit, print the inserted summary id, and stop.
+
+Get that id from `INSERT ... RETURNING id`. You have SELECT on `summaries.id`
+and on no other column of that table, which is enough for RETURNING and not
+enough to read anything back.
+
+Write exactly one row, and make it the real summary. `summaries` is the table
+the dashboard reads on stage — it is not scratch space. Do not insert a test
+row, do not probe the table with placeholder values, and do not write a row
+you intend to replace. If a statement fails, fix the statement; do not work
+around it by writing something you did not mean.

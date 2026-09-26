@@ -461,21 +461,40 @@ fi
 step "6/7  Harness Runtime cron trigger"
 
 if [ -z "$SUMMARY_CRON" ]; then
-  info "SUMMARY_CRON not set — skipping the scheduled summary."
-  info "Set it in .env (e.g. '45 16 * * *') and re-run to add the closing beat."
+  # Clearing SUMMARY_CRON has to actually turn the summary off. Skipping the
+  # block would leave an existing trigger firing on its old schedule with no
+  # way to stop it from here, which is the same silent-divergence trap as an
+  # un-pushed prompt — just one that costs a session a day.
+  stale_cron="$(doctl harness-runtime triggers list --output json 2>/dev/null \
+    | jq -r --arg n "${STACK_NAME}-summary" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
+  if [ -n "$stale_cron" ]; then
+    doctl harness-runtime triggers delete "$stale_cron" --force >/dev/null 2>&1 \
+      && ok "SUMMARY_CRON is empty — removed the scheduled summary" \
+      || warn "SUMMARY_CRON is empty but ${STACK_NAME}-summary could not be removed"
+    state_set cron_trigger_id ""
+  else
+    info "SUMMARY_CRON not set — skipping the scheduled summary."
+    info "Set it in .env (quoted, e.g. SUMMARY_CRON=\"45 16 * * *\") to add the closing beat."
+  fi
 else
   CRON_TRIGGER="${STACK_NAME}-summary"
   existing_cron="$(doctl harness-runtime triggers list --output json 2>/dev/null \
     | jq -r --arg n "$CRON_TRIGGER" '.[]? | select(.name==$n) | .trigger_id // .id' | head -1)"
 
   if [ -n "$existing_cron" ]; then
+    # --cron-expr and --timezone are re-sent on every update. Without them a
+    # changed SUMMARY_CRON would sit in .env doing nothing while the trigger
+    # kept its original schedule — the same silent no-op that used to leave
+    # edited prompts undeployed.
     doctl harness-runtime triggers update "$existing_cron" \
       --prompt "$(cat agents/summary-voice.txt; echo; cat agents/summary-prompt.txt)" \
       --spec agents/summary-agent.yaml \
+      --cron-expr "$SUMMARY_CRON" \
+      --timezone "$SUMMARY_TIMEZONE" \
       --secret "ANTHROPIC_API_KEY=${INFERENCE_API_KEY}" \
       --secret "MARS_DATABASE_URL=${MARS_REPORTER_DATABASE_URL}" \
       >/dev/null 2>&1 \
-      && ok "trigger $CRON_TRIGGER updated with the current prompt and manifest" \
+      && ok "trigger $CRON_TRIGGER updated — '$SUMMARY_CRON' $SUMMARY_TIMEZONE" \
       || warn "trigger $CRON_TRIGGER exists but could not be updated"
   else
     doctl harness-runtime validate agents/summary-agent.yaml >/dev/null \
