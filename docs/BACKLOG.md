@@ -52,28 +52,21 @@ session still timed out on 25060 in a trigger-started one. Worth retesting.
 **11. No cron trigger is deployed.** The closing executive summary has never
 run on its schedule. Set `SUMMARY_CRON` and rehearse it.
 
-**19. The docs have fallen behind the code.** Audited rather than guessed —
-every item below is a confirmed gap as of this writing, and most of it is
-one day's work landing faster than the prose describing it.
+**19 is done.** Every gap that audit found is closed: the README deploy
+diagram shows all five things `deploy.sh` creates, ARCHITECTURE's layout
+matches the tree that exists (it had claimed `views/` and `public/`, neither
+of which has existed since the React rewrite), the `scripts/` listing is
+current, the complaint diagram shows `preload_tools` rather than implying a
+discovery step, and PLATFORM-NOTES covers the actor split, the unreliable
+`status` field, `preload_tools`, `DELETE` as the only re-authorization path,
+and per-trigger concurrency.
 
-README: *(the deploy diagram and the Reset/Close buttons were fixed when the
-close-issue trigger landed; what is left below still stands.)*
-
-docs/ARCHITECTURE.md:
-
-- the `scripts/` listing predates `clear-issues.sh` and `check-github.sh`
-- the complaint flow diagram does not show `preload_tools`, so it still
-  implies a discovery step that no longer happens
-
-docs/PLATFORM-NOTES.md now covers the actor split, the unreliable `status`
-field and `preload_tools`. Still missing: the reset trigger, and the fact
-that `DELETE` is the only way to re-authorize a connection the API believes
-is healthy.
-
-The rule this keeps violating: a document that is confidently wrong is worse
-than one that is missing, because it is trusted. Worth a pass that checks
-claims against the code rather than reading for plausibility — the last such
-pass found four flatly false statements in ARCHITECTURE alone.
+Keeping the rule it kept violating, because it is the reusable part: a
+document that is confidently wrong is worse than one that is missing,
+because it is trusted. Check claims against the code rather than reading for
+plausibility — the pass that found these found four flatly false statements
+in ARCHITECTURE alone, and later measurement disproved two more in the
+README.
 
 **20. Consider replacing doctl with a client library.** `deploy.sh` and the
 helper scripts shell out to `doctl` about twenty times, seventeen of which

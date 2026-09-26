@@ -13,11 +13,16 @@ flowchart LR
     V -->|classify| I[DO inference]
     I --> V
     V -->|INSERT ticket| PG
-    V -->|invoke tool| AG[Action Gateway]
+    V -->|"github_create_issue<br/>schema preloaded, no discovery call"| AG[Action Gateway]
     AG -->|credential substituted here| GH[GitHub issues]
     V -->|link issue to ticket| PG
     PG -->|poll| W[watcher] -->|SSE| D[dashboard]
 ```
+
+The three GitHub tools are named in the manifest's `preload_tools`, so the
+model is handed their input schemas up front and calls them directly. There
+is no `action_search` round trip in this picture because there is no longer
+one in the run.
 
 Note where the GitHub credential is, and is not. It lives in an Action
 Gateway connection and is substituted at tool-execution time, so it never
